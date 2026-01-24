@@ -57,8 +57,9 @@ def create_individual_chart(df, ticker):
     # Tentukan warna berdasarkan perubahan
     color = 'green' if change >= 0 else 'red'
     
-    # Tanggal 1 bulan lalu
-    one_month_ago = datetime.now() - timedelta(days=30)
+    # Tanggal 1 bulan lalu dari data terakhir
+    last_date = df.index[-1]
+    one_month_ago = last_date - timedelta(days=30)
     
     # Buat figure
     fig = go.Figure()
@@ -75,7 +76,7 @@ def create_individual_chart(df, ticker):
     
     # Tambahkan garis vertikal untuk 1 bulan lalu
     fig.add_vline(
-        x=one_month_ago.timestamp() * 1000,
+        x=one_month_ago,
         line_dash="dash",
         line_color="blue",
         line_width=1,
@@ -112,9 +113,6 @@ def create_grid_chart(stocks_data):
         horizontal_spacing=0.08
     )
     
-    # Tanggal 1 bulan lalu
-    one_month_ago = datetime.now() - timedelta(days=30)
-    
     # Tambahkan trace untuk setiap saham
     for idx, (ticker, df) in enumerate(stocks_data):
         if df is None or df.empty:
@@ -130,6 +128,10 @@ def create_grid_chart(stocks_data):
         
         # Tentukan warna
         color = 'green' if change >= 0 else 'red'
+        
+        # Tanggal 1 bulan lalu dari data terakhir
+        last_date = df.index[-1]
+        one_month_ago = last_date - timedelta(days=30)
         
         # Tambahkan line chart
         fig.add_trace(
@@ -148,7 +150,7 @@ def create_grid_chart(stocks_data):
         
         # Tambahkan garis vertikal
         fig.add_vline(
-            x=one_month_ago.timestamp() * 1000,
+            x=one_month_ago,
             line_dash="dash",
             line_color="blue",
             line_width=0.8,
