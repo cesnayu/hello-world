@@ -108,8 +108,8 @@ def create_grid_chart(stocks_data):
         rows=n_rows,
         cols=n_cols,
         subplot_titles=[ticker for ticker, _ in stocks_data],
-        vertical_spacing=0.08,
-        horizontal_spacing=0.05
+        vertical_spacing=0.12,
+        horizontal_spacing=0.08
     )
     
     # Tanggal 1 bulan lalu
@@ -157,16 +157,18 @@ def create_grid_chart(stocks_data):
         )
     
     # Update layout
-    total_height = 300 * n_rows
+    total_height = 400 * n_rows
     fig.update_layout(
         height=total_height,
         showlegend=False,
         hovermode='closest',
-        margin=dict(l=40, r=40, t=60, b=40)
+        margin=dict(l=50, r=50, t=80, b=50),
+        title_font_size=10
     )
     
-    # Matikan label x-axis
+    # Matikan label x-axis dan update y-axis
     fig.update_xaxes(showticklabels=False)
+    fig.update_yaxes(tickformat='.0f', nticks=5)
     
     return fig
 
