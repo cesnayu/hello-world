@@ -57,9 +57,8 @@ def create_individual_chart(df, ticker):
     # Tentukan warna berdasarkan perubahan
     color = 'green' if change >= 0 else 'red'
     
-    # Tanggal 1 bulan lalu dari data terakhir
-    last_date = df.index[-1]
-    one_month_ago = last_date - timedelta(days=30)
+    # Tanggal 1 bulan lalu
+    one_month_ago = datetime.now() - timedelta(days=30)
     
     # Buat figure
     fig = go.Figure()
@@ -76,7 +75,7 @@ def create_individual_chart(df, ticker):
     
     # Tambahkan garis vertikal untuk 1 bulan lalu
     fig.add_vline(
-        x=one_month_ago,
+        x=one_month_ago.timestamp() * 1000,
         line_dash="dash",
         line_color="blue",
         line_width=1,
@@ -113,6 +112,9 @@ def create_grid_chart(stocks_data):
         horizontal_spacing=0.08
     )
     
+    # Tanggal 1 bulan lalu
+    one_month_ago = datetime.now() - timedelta(days=30)
+    
     # Tambahkan trace untuk setiap saham
     for idx, (ticker, df) in enumerate(stocks_data):
         if df is None or df.empty:
@@ -128,10 +130,6 @@ def create_grid_chart(stocks_data):
         
         # Tentukan warna
         color = 'green' if change >= 0 else 'red'
-        
-        # Tanggal 1 bulan lalu dari data terakhir
-        last_date = df.index[-1]
-        one_month_ago = last_date - timedelta(days=30)
         
         # Tambahkan line chart
         fig.add_trace(
@@ -150,7 +148,7 @@ def create_grid_chart(stocks_data):
         
         # Tambahkan garis vertikal
         fig.add_vline(
-            x=one_month_ago,
+            x=one_month_ago.timestamp() * 1000,
             line_dash="dash",
             line_color="blue",
             line_width=0.8,
@@ -159,18 +157,16 @@ def create_grid_chart(stocks_data):
         )
     
     # Update layout
-    total_height = 400 * n_rows
+    total_height = 300 * n_rows
     fig.update_layout(
         height=total_height,
         showlegend=False,
         hovermode='closest',
-        margin=dict(l=50, r=50, t=80, b=50),
-        title_font_size=10
+        margin=dict(l=40, r=40, t=60, b=40)
     )
     
-    # Matikan label x-axis dan update y-axis
+    # Matikan label x-axis
     fig.update_xaxes(showticklabels=False)
-    fig.update_yaxes(tickformat='.0f', nticks=5)
     
     return fig
 
