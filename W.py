@@ -100,7 +100,7 @@ def create_grid_chart(stocks_data):
         rows=n_rows,
         cols=n_cols,
         subplot_titles=[ticker for ticker, _ in stocks_data],
-        vertical_spacing = 0,06
+        vertical_spacing = 0.06
     horizontal_spacing = 0.02
       )
     
