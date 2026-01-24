@@ -108,8 +108,8 @@ def create_grid_chart(stocks_data):
         rows=n_rows,
         cols=n_cols,
         subplot_titles=[ticker for ticker, _ in stocks_data],
-        vertical_spacing=0.08,
-        horizontal_spacing=0.05
+        vertical_spacing=0.05,
+        horizontal_spacing=0.03
     )
     
     # Tanggal 1 bulan lalu
