@@ -199,19 +199,76 @@ with tab_grid:
             if fig_main:
                 st.plotly_chart(fig_main, use_container_width=True)
 
-# === TAB 2: TOP VOLUME ===
+# === TAB 2: TOP VOLUME (BOOKMARKABLE) ===
 with tab_vol:
     st.header("Analisis Volume & Likuiditas")
-    user_vol = st.text_area("Input Ticker:", "GOTO.JK, BBRI.JK, BUMI.JK, ANTM.JK", height=70, key="vol_input")
     
-    if user_vol:
+    # 1. Tentukan Default List (Saham bawaan saat Reset)
+    DEFAULT_VOL_LIST = ["GOTO.JK", "BBRI.JK", "BUMI.JK", "ANTM.JK", "DEWA.JK"]
+
+    # 2. Inisialisasi Session State khusus Volume
+    if 'vol_watchlist' not in st.session_state:
+        st.session_state.vol_watchlist = DEFAULT_VOL_LIST
+
+    # 3. UI: Input Tambah & Tombol Reset
+    col_input, col_add, col_reset = st.columns([3, 1, 1])
+    
+    with col_input:
+        new_vol_ticker = st.text_input("Tambah Saham ke Analisa Volume:", placeholder="Contoh: ADRO.JK", key="vol_add_input").strip().upper()
+    
+    with col_add:
+        st.write("") # Spacer layout
+        st.write("")
+        if st.button("➕ Tambah", key="btn_add_vol"):
+            if new_vol_ticker and new_vol_ticker not in st.session_state.vol_watchlist:
+                st.session_state.vol_watchlist.append(new_vol_ticker)
+                st.rerun()
+            elif new_vol_ticker in st.session_state.vol_watchlist:
+                st.warning("Saham sudah ada di list.")
+
+    with col_reset:
+        st.write("") # Spacer layout
+        st.write("")
+        if st.button("🔄 Reset Awal", key="btn_reset_vol"):
+            st.session_state.vol_watchlist = DEFAULT_VOL_LIST # Kembalikan ke default
+            st.rerun()
+
+    # 4. Tampilkan List Saham yang Sedang Dianalisa (Bisa dihapus user)
+    st.caption("Daftar saham yang dianalisa saat ini:")
+    
+    # Tampilkan sebagai chips/multiselect agar user bisa hapus jika mau
+    edited_vol_list = st.multiselect(
+        "Edit List:",
+        options=st.session_state.vol_watchlist,
+        default=st.session_state.vol_watchlist,
+        key="vol_multiselect_editor",
+        label_visibility="collapsed"
+    )
+    
+    # Update session state jika user menghapus lewat multiselect
+    if len(edited_vol_list) != len(st.session_state.vol_watchlist):
+        st.session_state.vol_watchlist = edited_vol_list
+        st.rerun()
+
+    st.divider()
+
+    # 5. Proses Data
+    # Kita gabungkan list menjadi string koma (karena fungsi get_stock_volume_stats butuh string)
+    current_vol_str = ", ".join(st.session_state.vol_watchlist)
+    
+    if current_vol_str:
         with st.spinner("Mengambil data volume..."):
-            df_vol = get_stock_volume_stats(user_vol)
+            df_vol = get_stock_volume_stats(current_vol_str)
+            
             if df_vol is not None and not df_vol.empty:
-                sort_col = st.radio("Urutkan:", 
+                # Opsi Sorting
+                sort_col = st.radio("Urutkan Berdasarkan:", 
                                     ["Volume (Hari Ini)", "Avg Volume (1 Week)", "Est. Value (IDR)"], 
                                     horizontal=True)
-                df_sorted = df_vol.sort_values(by=sort_col, ascending=False)
+                
+                # Sorting Numerik
+                df_sorted = df_vol.sort_values(by=sort_col, ascending=False).reset_index(drop=True)
+                
                 st.dataframe(
                     df_sorted.style.format({
                         "Last Close": "{:,.0f}",
@@ -220,6 +277,10 @@ with tab_vol:
                         "Est. Value (IDR)": "Rp {:,.0f}"
                     }), use_container_width=True
                 )
+            else:
+                st.warning("Data tidak ditemukan untuk saham yang diinput.")
+    else:
+        st.info("List kosong. Silakan tambahkan saham atau klik Reset.")
 
 # === TAB 3: SECTOR GAIN ===
 with tab_sector:
