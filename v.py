@@ -28,7 +28,7 @@ def get_stock_data(ticker_list):
 
 def create_stock_grid(tickers, chart_data):
     """
-    Membuat Grid Chart Plotly 4 Kolom x N Baris
+    Membuat Grid Chart Plotly 4 Kolom x N Baris (FIXED: Dynamic Spacing)
     """
     if not tickers:
         st.info("Tidak ada saham untuk ditampilkan.")
@@ -37,33 +37,46 @@ def create_stock_grid(tickers, chart_data):
     # Hitung jumlah baris yang dibutuhkan (4 kolom per baris)
     rows = math.ceil(len(tickers) / 4)
     
+    # --- PERBAIKAN DI SINI ---
+    # Jika baris banyak, spasi harus diperkecil agar muat.
+    # Rumus: Maksimal 0.05, tapi mengecil jika rows bertambah.
+    # Kita batasi total spasi agar hanya memakan max 20% dari tinggi chart.
+    if rows > 1:
+        calculated_spacing = 0.2 / (rows - 1) # Total gap takes 20% of height
+        vertical_spacing = min(0.05, calculated_spacing) 
+    else:
+        vertical_spacing = 0.05
+    
     # Buat Subplots
     fig = make_subplots(
         rows=rows, 
         cols=4, 
         subplot_titles=tickers,
-        vertical_spacing=0.05,
+        vertical_spacing=vertical_spacing, # Gunakan spacing dinamis
         horizontal_spacing=0.02
     )
 
     # Tanggal 1 bulan lalu untuk garis vertikal
     one_month_ago = datetime.now() - timedelta(days=30)
-    one_month_ago_str = one_month_ago.strftime('%Y-%m-%d')
 
     for i, ticker in enumerate(tickers):
         # Tentukan posisi grid (row, col) - Plotly index mulai dari 1
         row = (i // 4) + 1
         col = (i % 4) + 1
 
-        # Ambil data spesifik ticker
-        # Handling jika ticker cuma 1, yfinance strukturnya beda
+        # Handling data extraction
         if len(tickers) == 1:
             df = chart_data
         else:
             try:
-                df = chart_data[ticker]
+                # Cek jika MultiIndex (biasanya terjadi jika download >1 ticker)
+                if isinstance(chart_data.columns, pd.MultiIndex):
+                    df = chart_data[ticker]
+                else:
+                    # Fallback jika struktur data flat atau ticker cuma 1 tapi list
+                    df = chart_data
             except KeyError:
-                continue # Skip jika data ticker tidak ditemukan
+                continue 
 
         if df.empty or 'Close' not in df.columns:
             continue
@@ -72,51 +85,49 @@ def create_stock_grid(tickers, chart_data):
         if len(df) < 2: 
             continue
 
-        # Tentukan Warna Line (Hari ini vs Kemarin)
+        # Tentukan Warna Line
         last_price = df['Close'].iloc[-1]
         prev_price = df['Close'].iloc[-2]
         
-        # Konversi ke float untuk keamanan perbandingan
         price_change = float(last_price) - float(prev_price)
-        line_color = 'green' if price_change >= 0 else 'red'
+        line_color = '#00C805' if price_change >= 0 else '#FF333A' # Warna hijau/merah cerah
 
-        # Tambahkan Trace (Line Chart)
+        # Tambahkan Trace
         fig.add_trace(
             go.Scatter(
                 x=df.index, 
                 y=df['Close'], 
                 mode='lines',
-                line=dict(color=line_color, width=2),
+                line=dict(color=line_color, width=1.5), # Tipiskan garis sedikit
                 name=ticker,
-                hovertemplate=f"<b>{ticker}</b><br>Date: %{{x}}<br>Price: %{{y:.2f}}<extra></extra>"
+                hovertemplate=f"<b>{ticker}</b><br>Price: %{{y:.2f}}<extra></extra>"
             ),
             row=row, col=col
         )
 
-        # Tambahkan Garis Vertikal (1 Bulan Lalu)
-        # Kita gunakan add_vline pada level subplot axis
+        # Tambahkan Garis Vertikal
         fig.add_vline(
-            x=one_month_ago.timestamp() * 1000, # Plotly sering butuh ms timestamp untuk date axis
+            x=one_month_ago.timestamp() * 1000, 
             line_width=1, 
-            line_dash="dash", 
+            line_dash="dot", 
             line_color="blue",
             row=row, col=col
         )
         
-        # Sembunyikan label X-axis untuk hemat tempat
+        # Sembunyikan label X dan Y untuk kebersihan
         fig.update_xaxes(showticklabels=False, row=row, col=col)
-        fig.update_yaxes(showticklabels=False, row=row, col=col) # Opsional: sembunyikan harga Y agar lebih bersih
+        fig.update_yaxes(showticklabels=False, row=row, col=col)
 
     # Update Layout Global
+    # Tinggi per row dikurangi sedikit (150px) agar tidak terlalu panjang scroll-nya
     fig.update_layout(
-        height=rows * 200, # Tinggi dinamis berdasarkan jumlah baris
+        height=max(400, rows * 150), 
         showlegend=False,
         margin=dict(l=10, r=10, t=40, b=10),
-        hovermode="x unified" # Hover yang enak dilihat
+        hovermode="x unified"
     )
     
     return fig
-
 # --- 4. Sidebar: Input & Bookmark Manager ---
 st.sidebar.header("Pengaturan")
 
