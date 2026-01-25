@@ -301,29 +301,40 @@ with tab_sector:
                     use_container_width=True
                 )
 
-# === TAB 4: SEARCH & WATCHLIST (NEW) ===
+# === TAB 4: SEARCH & WATCHLIST (FIXED BULK PASTE) ===
 with tab_search:
     st.header("🔍 Pencarian & Watchlist Saya")
-    st.write("Cari saham dan tambahkan ke daftar pantauan. Data ini tidak akan hilang saat pindah tab.")
+    st.write("Cari saham dan tambahkan ke daftar pantauan. Bisa input satu atau banyak sekaligus (pisahkan koma).")
 
     # 1. INPUT SECTION
     col_input, col_btn = st.columns([3, 1])
     with col_input:
-        new_ticker = st.text_input("Ketik Kode Saham (contoh: UNTR.JK, AAPL)", key="search_box").strip().upper()
+        # Gunakan text_area agar lebih enak kalau paste list panjang
+        new_ticker_input = st.text_area("Ketik/Paste Kode Saham (contoh: UNTR.JK, AAPL, BBCA.JK)", height=68, key="search_box")
     with col_btn:
         st.write("") # Spacer agar tombol sejajar
         st.write("")
         add_btn = st.button("➕ Tambahkan ke Watchlist")
 
-    # Logic Tambah Saham
-    if add_btn and new_ticker:
-        # Validasi sederhana agar tidak duplikat
-        if new_ticker not in st.session_state.watchlist:
-            st.session_state.watchlist.append(new_ticker)
-            st.success(f"Saham {new_ticker} berhasil ditambahkan!")
+    # Logic Tambah Saham (SUDAH DIPERBAIKI UNTUK BULK)
+    if add_btn and new_ticker_input:
+        # Langkah 1: Pecah text berdasarkan koma
+        # Langkah 2: Bersihkan spasi dan ubah ke huruf besar
+        tickers_to_process = [t.strip().upper() for t in new_ticker_input.split(',') if t.strip()]
+        
+        count_added = 0
+        
+        for ticker in tickers_to_process:
+            # Cek duplikasi sebelum append
+            if ticker not in st.session_state.watchlist:
+                st.session_state.watchlist.append(ticker)
+                count_added += 1
+        
+        if count_added > 0:
+            st.success(f"Berhasil menambahkan {count_added} saham baru!")
             st.rerun() # Refresh halaman agar grid update
         else:
-            st.warning(f"{new_ticker} sudah ada di watchlist.")
+            st.warning("Semua saham yang diinput sudah ada di watchlist kamu.")
 
     st.divider()
 
@@ -342,8 +353,6 @@ with tab_search:
         
         # Menggunakan Fungsi Grid yang SAMA dengan Tab 1
         with st.spinner("Memuat grafik watchlist..."):
-            # Kita paksa ambil data baru khusus watchlist (cache terpisah dgn grid utama jika mau)
-            # Tapi kita pakai fungsi yg sama 'get_stock_history_bulk' jadi tetap efisien
             data_watch = get_stock_history_bulk(current_watchlist)
             
             if not data_watch.empty:
@@ -351,4 +360,4 @@ with tab_search:
                 if fig_watch:
                     st.plotly_chart(fig_watch, use_container_width=True)
             else:
-                st.error("Gagal mengambil data untuk watchlist. Cek kembali kode saham.")
+                st.error("Gagal mengambil data. Pastikan kode saham benar (contoh: BBCA.JK untuk Indonesia).")
