@@ -361,3 +361,57 @@ with tab_search:
                     st.plotly_chart(fig_watch, use_container_width=True)
             else:
                 st.error("Gagal mengambil data. Pastikan kode saham benar (contoh: BBCA.JK untuk Indonesia).")
+# === TAB 5: ANALISA DETAIL (NEW FEATURE) ===
+with tab_detail:
+    st.header("🔎 Analisa Saham Mendalam")
+    st.write("Lihat grafik lengkap dengan candlestick, volume, dan rentang waktu bebas.")
+    
+    # 1. Kontrol Input (Ticker & Timeframe)
+    col_search, col_period = st.columns([2, 3])
+    
+    with col_search:
+        # Default value ambil dari watchlist pertama kalau ada
+        default_ticker = st.session_state.watchlist[0] if st.session_state.watchlist else "BBCA.JK"
+        detail_ticker = st.text_input("Ketik Kode Saham:", value=default_ticker, key="detail_input").strip().upper()
+        
+    with col_period:
+        # Pilihan Rentang Waktu
+        period_options = ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"]
+        # Label yang lebih manusiawi
+        period_labels = {"1mo": "1 Bulan", "3mo": "3 Bulan", "6mo": "6 Bulan", "1y": "1 Tahun", "2y": "2 Tahun", "5y": "5 Tahun", "max": "Sejak IPO"}
+        
+        selected_period_code = st.select_slider(
+            "Pilih Rentang Waktu:",
+            options=period_options,
+            value="1y", # Default 1 tahun
+            format_func=lambda x: period_labels[x]
+        )
+
+    st.divider()
+
+    # 2. Render Chart
+    if detail_ticker:
+        with st.spinner(f"Mengambil data {detail_ticker} ({period_labels[selected_period_code]})..."):
+            
+            # Panggil fungsi baru get_single_stock_detail
+            df_detail = get_single_stock_detail(detail_ticker, selected_period_code)
+            
+            if df_detail is not None and not df_detail.empty:
+                # Tampilkan Chart Candlestick
+                fig_detail = create_detail_chart(df_detail, detail_ticker)
+                st.plotly_chart(fig_detail, use_container_width=True)
+                
+                # Tampilkan Data Statistik Singkat
+                last_row = df_detail.iloc[-1]
+                prev_row = df_detail.iloc[-2] if len(df_detail) > 1 else last_row
+                change = last_row['Close'] - prev_row['Close']
+                pct_change = (change / prev_row['Close']) * 100
+                
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Harga Terakhir", f"{last_row['Close']:,.0f}")
+                col2.metric("Perubahan", f"{change:,.0f}", f"{pct_change:.2f}%")
+                col3.metric("Volume", f"{last_row['Volume']:,.0f}")
+                col4.metric("Tertinggi (Periode Ini)", f"{df_detail['High'].max():,.0f}")
+                
+            else:
+                st.error(f"Data tidak ditemukan untuk {detail_ticker}. Pastikan kode benar (tambah .JK untuk Indonesia).")
