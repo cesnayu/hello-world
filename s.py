@@ -194,7 +194,7 @@ def get_fundamental_screener(tickers_list):
     progress_bar.empty()
     return pd.DataFrame(screener_data)
 
-# --- FUNGSI BARU: PERFORMANCE MATRIX (Fix Logic + Raw Price + Calendar) ---
+# --- FUNGSI BARU: PERFORMANCE MATRIX (Fix Logic + Industry) ---
 @st.cache_data(ttl=600) 
 def get_performance_matrix(raw_input):
     if not raw_input: return pd.DataFrame()
@@ -217,6 +217,14 @@ def get_performance_matrix(raw_input):
     results = []
     for t in tickers:
         try:
+            # === 1. FETCH INDUSTRY (New) ===
+            # Ini mungkin sedikit memperlambat, tapi sesuai request
+            try:
+                industry = yf.Ticker(t).info.get('industry', '-')
+            except:
+                industry = '-'
+
+            # === 2. EXTRACT PRICE DATA ===
             if len(tickers) == 1: df = data; symbol = tickers[0]
             else:
                 if isinstance(data.columns, pd.MultiIndex):
@@ -238,7 +246,6 @@ def get_performance_matrix(raw_input):
             curr_price = float(df['Close'].iloc[-1])
             curr_date = df.index[-1]
 
-            # Logic Time Travel (Calendar)
             def get_pct_change(days_ago):
                 target_date = curr_date - timedelta(days=days_ago)
                 past_data = df.loc[df.index <= target_date]
@@ -247,7 +254,6 @@ def get_performance_matrix(raw_input):
                 if past_price == 0: return 0.0
                 return ((curr_price - past_price) / past_price) * 100
 
-            # Logic YTD (End of Last Year)
             last_year = curr_date.year - 1
             last_year_end = datetime(last_year, 12, 31)
             ytd_data = df.loc[df.index <= last_year_end]
@@ -257,7 +263,9 @@ def get_performance_matrix(raw_input):
             else: ytd_change = None
 
             results.append({
-                "Ticker": symbol, "Harga": curr_price,
+                "Ticker": symbol,
+                "Industri": industry, # Kolom Baru
+                "Harga": curr_price,
                 "1 Hari": ((curr_price - df['Close'].iloc[-2])/df['Close'].iloc[-2]) * 100,
                 "1 Minggu": get_pct_change(7), "1 Bulan": get_pct_change(30),
                 "6 Bulan": get_pct_change(180), "YTD": ytd_change,
@@ -389,7 +397,7 @@ with tab_detail:
                 c4.metric("High", f"{df_detail['High'].max():,.0f}")
             else: st.error("Data tidak ditemukan.")
 
-# === TAB 6: CYCLE (PERSISTENCE ADDED) ===
+# === TAB 6: CYCLE (PERSISTENCE) ===
 with tab_cycle:
     st.header("🔄 Cycle Analysis")
     c1, c2, c3 = st.columns([2, 1, 1])
@@ -405,12 +413,9 @@ with tab_cycle:
         st.write(""); 
         if st.button("🚀 Bandingkan", key="btn_cycle"):
             with st.spinner("Menganalisa..."):
-                # SIMPAN KE SESSION STATE
                 st.session_state['cycle_data'] = get_seasonal_details(cycle_tickers, start_m, end_m, years_lookback)
 
     st.divider()
-    
-    # CEK APAKAH ADA DATA DI SESSION STATE
     if 'cycle_data' in st.session_state and st.session_state['cycle_data']:
         results_dict = st.session_state['cycle_data']
         if results_dict:
@@ -431,7 +436,7 @@ with tab_cycle:
                     st.plotly_chart(fig, use_container_width=True)
         else: st.warning("Data tidak cukup.")
 
-# === TAB 7: FUNDAMENTAL (PERSISTENCE ADDED) ===
+# === TAB 7: FUNDAMENTAL (PERSISTENCE) ===
 with tab_fund:
     st.header("💎 Fundamental & Classification Screener")
     default_txt = ", ".join(SAMPLE_SCREENER_TICKERS)
@@ -441,12 +446,9 @@ with tab_fund:
         if st.button("🔍 Scan Fundamental", key="btn_fund"):
             tickers_to_scan = [t.strip().upper() for t in user_screener_input.split(',') if t.strip()]
             st.write(f"Sedang mengambil data fundamental untuk {len(tickers_to_scan)} saham...")
-            # SIMPAN KE SESSION STATE
             st.session_state['fund_data'] = get_fundamental_screener(tickers_to_scan)
 
     st.divider()
-    
-    # CEK SESSION STATE
     if 'fund_data' in st.session_state and not st.session_state['fund_data'].empty:
         df_fund = st.session_state['fund_data']
         unique_industries = df_fund["Industry"].unique()
@@ -462,23 +464,20 @@ with tab_fund:
                     "EPS": st.column_config.NumberColumn("EPS", format="%.2f")})
             st.write("")
 
-# === TAB 8: PERFORMANCE MATRIX (PERSISTENCE ADDED) ===
+# === TAB 8: PERFORMANCE MATRIX (PERSISTENCE + INDUSTRY + RAW PRICE) ===
 with tab_perf:
-    st.header("🚀 Tabel Performa Saham (Numerik)")
-    st.write("Menggunakan **Raw Price** & **Calendar Slicing**.")
+    st.header("🚀 Tabel Performa Saham")
+    st.write("Data menggunakan **Raw Price** & **Calendar Slicing**. Menampilkan Industri.")
 
     def_perf = ", ".join(st.session_state.watchlist) if st.session_state.watchlist else "ADRO.JK\nBBCA.JK\nBBRI.JK\nGOTO.JK"
     perf_tickers_input = st.text_area("Input Saham:", value=def_perf, height=100, key="perf_in_main")
     
     if st.button("Hitung Performa", key="btn_perf"):
-        with st.spinner("Menghitung return..."):
-            # SIMPAN KE SESSION STATE
+        with st.spinner("Mengambil Data & Metadata..."):
             st.session_state['perf_data'] = get_performance_matrix(perf_tickers_input)
             
-    # CEK SESSION STATE
     if 'perf_data' in st.session_state and not st.session_state['perf_data'].empty:
         df_perf = st.session_state['perf_data']
-        
         pct_fmt = st.column_config.NumberColumn(format="%.2f%%")
         
         def color_negative_red(val):
@@ -497,6 +496,7 @@ with tab_perf:
             hide_index=True,
             column_config={
                 "Ticker": st.column_config.TextColumn("Kode"),
+                "Industri": st.column_config.TextColumn("Industri"), # Kolom Baru
                 "Harga": st.column_config.NumberColumn("Harga", format="Rp %.0f"),
                 "1 Hari": pct_fmt, "1 Minggu": pct_fmt, "1 Bulan": pct_fmt,
                 "6 Bulan": pct_fmt, "YTD": pct_fmt, "1 Tahun": pct_fmt, "3 Tahun": pct_fmt
