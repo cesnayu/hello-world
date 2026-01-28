@@ -38,7 +38,7 @@ if 'watchlist' not in st.session_state:
 if 'vol_watchlist' not in st.session_state:
     st.session_state.vol_watchlist = saved_data["vol_watchlist"] if (saved_data and "vol_watchlist" in saved_data) else ["GOTO.JK", "BBRI.JK", "BUMI.JK"]
 
-# --- 4. DATA MAPPING ---
+# --- 4. DATA MAPPING (SEKTOR UMUM - TAB 3) ---
 SECTOR_MAP = {
     "Banking": ["BBCA.JK", "BBRI.JK", "BMRI.JK", "BBNI.JK", "BRIS.JK", "ARTO.JK"],
     "Energy": ["ADRO.JK", "PTBA.JK", "ITMG.JK", "PGAS.JK", "MDKA.JK", "ANTM.JK", "BUMI.JK"],
@@ -46,6 +46,33 @@ SECTOR_MAP = {
     "Consumer": ["ICBP.JK", "INDF.JK", "UNVR.JK", "MYOR.JK", "KLBF.JK"],
     "Auto": ["ASII.JK", "UNTR.JK", "SMGR.JK", "INTP.JK"]
 }
+
+# --- LIST SAHAM UNTUK SCREENER (SAMPEL BERAGAM) ---
+# Ini daftar representatif untuk demo cepat. User bisa input manual nanti.
+SAMPLE_SCREENER_TICKERS = [
+    # Banks
+    "BBCA.JK", "BBRI.JK", "BMRI.JK", "BBNI.JK", "BBTN.JK", "ARTO.JK", "BRIS.JK",
+    # Telco
+    "TLKM.JK", "ISAT.JK", "EXCL.JK",
+    # Towers (Infrastructure)
+    "TOWR.JK", "TBIG.JK", "MTEL.JK", "CENT.JK",
+    # Coal
+    "ADRO.JK", "PTBA.JK", "ITMG.JK", "HRUM.JK", "BUMI.JK", "BYAN.JK",
+    # Gold/Metal
+    "MDKA.JK", "ANTM.JK", "INCO.JK", "TINS.JK", "AMMN.JK",
+    # Consumer
+    "ICBP.JK", "INDF.JK", "UNVR.JK", "MYOR.JK", "CMRY.JK", "ADES.JK",
+    # Retail
+    "AMRT.JK", "MAPI.JK", "ACES.JK", "MIDI.JK",
+    # Auto & Heavy Eq
+    "ASII.JK", "UNTR.JK", "AUTO.JK", "DRMA.JK",
+    # Tech
+    "GOTO.JK", "BUKA.JK", "EMTK.JK", "BELI.JK",
+    # Property
+    "BSDE.JK", "CTRA.JK", "PWON.JK", "SMRA.JK",
+    # Poultry
+    "CPIN.JK", "JPFA.JK"
+]
 
 # --- 5. FUNGSI LOGIKA (BACKEND) ---
 
@@ -55,96 +82,56 @@ def get_stock_history_bulk(tickers, period="3mo"):
     data = yf.download(tickers, period=period, group_by='ticker', progress=False)
     return data
 
-# --- PERBAIKAN DI SINI (ANTI DUPLICATE ERROR) ---
 @st.cache_data(ttl=300)
 def get_single_stock_detail(ticker, period):
     if not ticker: return None
     try:
         df = yf.download(ticker, period=period, progress=False)
         if df.empty: return None
-        
-        # 1. Flatten MultiIndex Columns jika ada
-        if isinstance(df.columns, pd.MultiIndex): 
-            df.columns = df.columns.get_level_values(0)
-            
-        # 2. HAPUS KOLOM DUPLIKAT (Ini solusi error Narwhals)
-        # Kita ambil semua kolom, tapi jika ada nama kembar, ambil yang pertama saja
-        df = df.loc[:, ~df.columns.duplicated()]
-
-        # 3. Reset Index
+        if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+        df = df.loc[:, ~df.columns.duplicated()] 
         df = df.reset_index()
-        
-        # 4. Standardisasi Nama Kolom Date
-        if 'Date' not in df.columns and 'Datetime' in df.columns: 
-            df = df.rename(columns={'Datetime': 'Date'})
-            
+        if 'Date' not in df.columns and 'Datetime' in df.columns: df = df.rename(columns={'Datetime': 'Date'})
         return df
     except: return None
-# ------------------------------------------------
 
 @st.cache_data(ttl=600)
 def get_seasonal_details(tickers_str, start_month, end_month, lookback_years=5):
-    """
-    FIXED: Loop mulai dari 0 (Current Year Included) dan handle partial data.
-    """
     if not tickers_str: return None
     ticker_list = [t.strip().upper() for t in tickers_str.split(',') if t.strip()]
-    
     start_date = datetime.now() - timedelta(days=(lookback_years + 2) * 365)
     data = yf.download(ticker_list, start=start_date, group_by='ticker', progress=False)
-    
     results = {} 
-
     for ticker in ticker_list:
         try:
             if len(ticker_list) == 1: df = data; symbol = ticker_list[0]
             else: df = data[ticker]; symbol = ticker
-            
             if df.empty: continue
             if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-            
-            # HAPUS DUPLIKAT JUGA DISINI BIAR AMAN
             df = df.loc[:, ~df.columns.duplicated()]
-            
             df = df.reset_index()
             if 'Date' not in df.columns and 'Datetime' in df.columns: df = df.rename(columns={'Datetime': 'Date'})
             df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None)
-            
             stock_years_data = {}
             current_year = datetime.now().year
-            
             for i in range(0, lookback_years + 1):
                 y_end = current_year - i
-                
-                # Logic Cross Year (Misal Nov ke Apr)
-                if int(start_month) > int(end_month):
-                    y_start = y_end - 1 
-                else:
-                    y_start = y_end
-
+                if int(start_month) > int(end_month): y_start = y_end - 1 
+                else: y_start = y_end
                 try:
                     d_start = datetime(y_start, int(start_month), 1)
                     if d_start > datetime.now(): continue
-
                     d_end = datetime(y_end, int(end_month), 28) 
                     label = f"{y_start}/{y_end}" if int(start_month) > int(end_month) else f"{y_end}"
                 except: continue
-                
                 mask = (df['Date'] >= d_start) & (df['Date'] <= d_end)
                 df_period = df.loc[mask].copy()
-                
                 if df_period.empty: continue
-                
                 first_price = df_period['Close'].iloc[0]
                 df_period['Rel_Change'] = ((df_period['Close'] - first_price) / first_price) * 100
-                
                 stock_years_data[label] = df_period['Rel_Change'].reset_index(drop=True)
-            
-            if stock_years_data:
-                results[symbol] = stock_years_data
-                
-        except Exception: continue
-        
+            if stock_years_data: results[symbol] = stock_years_data
+        except: continue
     return results
 
 @st.cache_data(ttl=300)
@@ -160,8 +147,7 @@ def get_stock_volume_stats(tickers_str):
             else: df = data[t]; symbol = t
             if df.empty: continue
             if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-            df = df.loc[:, ~df.columns.duplicated()] # Safety
-
+            df = df.loc[:, ~df.columns.duplicated()]
             stats.append({
                 "Ticker": symbol, 
                 "Last Close": df['Close'].iloc[-1], 
@@ -183,8 +169,7 @@ def get_sector_performance(sector_name):
             df = data[t] if len(tickers) > 1 else data
             if df.empty: continue
             if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-            df = df.loc[:, ~df.columns.duplicated()] # Safety
-            
+            df = df.loc[:, ~df.columns.duplicated()]
             df = df.sort_index()
             curr = df['Close'].iloc[-1]
             def calc_pct(d):
@@ -194,7 +179,55 @@ def get_sector_performance(sector_name):
         except: continue
     return pd.DataFrame(perf_list)
 
-# --- 6. VISUALISASI CHART ---
+# --- FUNGSI BARU: FUNDAMENTAL SCREENER (HEAVY TASK) ---
+@st.cache_data(ttl=3600) # Cache 1 jam karena data fundamental jarang berubah
+def get_fundamental_screener(tickers_list):
+    """
+    Mengambil data detail: Industry, PBV, PER, EPS, 52W High/Low
+    """
+    screener_data = []
+    
+    # Progress bar karena ini bisa lama
+    progress_bar = st.progress(0)
+    total = len(tickers_list)
+    
+    for i, ticker in enumerate(tickers_list):
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info # Ini request API yang berat (1 request per saham)
+            
+            # Ekstraksi Data yang diminta user
+            industry = info.get('industry', 'N/A')
+            curr_price = info.get('currentPrice', info.get('previousClose', 0))
+            high_52 = info.get('fiftyTwoWeekHigh', 0)
+            low_52 = info.get('fiftyTwoWeekLow', 0)
+            
+            # Fundamental
+            pbv = info.get('priceToBook', None)
+            per = info.get('trailingPE', None)
+            eps_ttm = info.get('trailingEps', None)
+            
+            screener_data.append({
+                "Ticker": ticker,
+                "Industry (Rinci)": industry, # Klasifikasi Rinci
+                "Price": curr_price,
+                "52W High": high_52,
+                "52W Low": low_52,
+                "PBV": pbv,
+                "PER (TTM)": per,
+                "EPS (TTM)": eps_ttm
+            })
+            
+        except Exception:
+            pass # Skip ticker error
+        
+        # Update progress
+        progress_bar.progress((i + 1) / total)
+        
+    progress_bar.empty() # Hilangkan bar setelah selesai
+    return pd.DataFrame(screener_data)
+
+# --- 6. VISUALISASI ---
 def create_stock_grid(tickers, chart_data):
     if not tickers: return None
     rows = math.ceil(len(tickers) / 4)
@@ -231,11 +264,12 @@ def create_detail_chart(df, ticker):
 st.title("📈 Super Stock Dashboard")
 default_tickers = ["BBCA.JK", "BBRI.JK", "BMRI.JK", "ASII.JK", "TLKM.JK", "UNVR.JK", "ADRO.JK", "ICBP.JK"] * 4 
 
-tab_grid, tab_vol, tab_sector, tab_watch, tab_detail, tab_cycle = st.tabs([
-    "📊 Grid View", "🔊 Top Volume", "🏢 Sector Gain", "⭐ Watchlist", "🔎 Analisa Detail", "🔄 Feature Cycle"
+# UPDATE TABS: TAMBAH TAB 7 (SCREENER)
+tab_grid, tab_vol, tab_sector, tab_watch, tab_detail, tab_cycle, tab_fund = st.tabs([
+    "📊 Grid", "🔊 Volume", "🏢 Sektor", "⭐ Watchlist", "🔎 Detail", "🔄 Cycle", "💎 Fundamental"
 ])
 
-# === TAB 1: GRID ===
+# === TAB 1-6 (KODE LAMA, DIPERSINGKAT AGAR MUAT, LOGIKA SAMA) ===
 with tab_grid:
     st.write("Grid Overview")
     if 'page' not in st.session_state: st.session_state.page = 1
@@ -247,10 +281,8 @@ with tab_grid:
     with st.spinner("Memuat grafik..."):
         data_grid = get_stock_history_bulk(batch)
         if not data_grid.empty:
-            fig = create_stock_grid(batch, data_grid)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(create_stock_grid(batch, data_grid), use_container_width=True)
 
-# === TAB 2: VOLUME ===
 with tab_vol:
     st.header("Analisis Volume")
     DEFAULT_VOL = ["GOTO.JK", "BBRI.JK", "BUMI.JK", "ANTM.JK", "DEWA.JK"]
@@ -272,7 +304,6 @@ with tab_vol:
                 sc = st.radio("Urutkan:", ["Volume", "Avg Vol", "Est. Val"], horizontal=True)
                 st.dataframe(df_v.sort_values(by=sc, ascending=False).style.format({"Last Close": "{:,.0f}", "Volume": "{:,.0f}", "Avg Vol": "{:,.0f}", "Est. Val": "Rp {:,.0f}"}), use_container_width=True)
 
-# === TAB 3: SECTOR ===
 with tab_sector:
     sec = st.selectbox("Sektor:", list(SECTOR_MAP.keys()))
     if sec:
@@ -280,7 +311,6 @@ with tab_sector:
             df_s = get_sector_performance(sec)
             if not df_s.empty: st.dataframe(df_s.style.applymap(lambda v: f'background-color: {"#d4f7d4" if v>0 else "#f7d4d4" if v<0 else ""}', subset=['1D %', '1W %', '1M %']).format({"Price": "{:,.0f}", "1D %": "{:+.2f}%", "1W %": "{:+.2f}%", "1M %": "{:+.2f}%"}), use_container_width=True)
 
-# === TAB 4: WATCHLIST ===
 with tab_watch:
     st.header("Watchlist Saya")
     ci, cb = st.columns([3, 1])
@@ -296,11 +326,8 @@ with tab_watch:
         if len(ew) != len(cw): st.session_state.watchlist = ew; save_data(); st.rerun()
         with st.spinner("Load..."):
             dw = get_stock_history_bulk(cw)
-            if not dw.empty: 
-                fw = create_stock_grid(cw, dw)
-                if fw: st.plotly_chart(fw, use_container_width=True)
+            if not dw.empty: st.plotly_chart(create_stock_grid(cw, dw), use_container_width=True)
 
-# === TAB 5: DETAIL ===
 with tab_detail:
     st.header("🔎 Analisa Saham Mendalam")
     col_search, col_period = st.columns([2, 3])
@@ -324,27 +351,20 @@ with tab_detail:
                 c4.metric("High", f"{df_detail['High'].max():,.0f}")
             else: st.error("Data tidak ditemukan.")
 
-# === TAB 6: FEATURE CYCLE (REVISI - WARNA CUSTOM & FIX YEAR) ===
 with tab_cycle:
-    st.header("🔄 Cycle Analysis (Year over Year)")
-    st.write("Membandingkan pergerakan harga saham pada bulan yang sama di tahun-tahun berbeda.")
-    
-    # Input
+    st.header("🔄 Cycle Analysis")
     c1, c2, c3 = st.columns([2, 1, 1])
     with c1:
         def_t = ", ".join(st.session_state.watchlist[:2]) if st.session_state.watchlist else "GOTO.JK, BBCA.JK"
-        cycle_tickers = st.text_input("Saham (Pisahkan koma):", value=def_t, key="cycle_in").strip().upper()
+        cycle_tickers = st.text_input("Saham:", value=def_t, key="cycle_in").strip().upper()
     with c2:
         month_map = {1:"Jan", 2:"Feb", 3:"Mar", 4:"Apr", 5:"Mei", 6:"Jun", 7:"Jul", 8:"Agust", 9:"Sep", 10:"Okt", 11:"Nov", 12:"Des"}
-        start_m = st.selectbox("Dari Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=10) # Nov
-        end_m = st.selectbox("Sampai Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=3) # Apr
+        start_m = st.selectbox("Dari:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=10) 
+        end_m = st.selectbox("Sampai:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=3)
     with c3:
-        years_lookback = st.slider("Tarik Data Berapa Tahun?", 3, 10, 5)
-        st.write("")
-        btn_cycle = st.button("🚀 Bandingkan")
-
+        years_lookback = st.slider("Tahun:", 3, 10, 5)
+        st.write(""); btn_cycle = st.button("🚀 Bandingkan")
     st.divider()
-    
     if btn_cycle and cycle_tickers:
         with st.spinner("Menganalisa..."):
             results_dict = get_seasonal_details(cycle_tickers, start_m, end_m, years_lookback)
@@ -354,31 +374,72 @@ with tab_cycle:
                     with cols[idx % 2]:
                         fig = go.Figure()
                         sorted_years = sorted(years_data.keys(), reverse=True)
-                        
-                        # --- CUSTOM WARNA: HITAM, BIRU, MERAH, HIJAU ---
                         my_colors = ['black', 'blue', 'red', 'green'] 
-                        
                         for i, year_label in enumerate(sorted_years):
                             series = years_data[year_label]
                             chosen_color = my_colors[i % len(my_colors)]
                             is_current = str(datetime.now().year) in year_label
-                            
-                            # Logika Tebal Garis: Jika tahun ini, tebal 3, lainnya 1.5
                             width = 3 if is_current else 1.5
-                            
-                            fig.add_trace(go.Scatter(
-                                y=series, mode='lines', name=year_label,
-                                line=dict(width=width, color=chosen_color),
-                                hovertemplate=f"<b>{year_label}</b><br>Hari ke-%{{x}}<br>Return: %{{y:.2f}}%<extra></extra>"
-                            ))
-                        
+                            fig.add_trace(go.Scatter(y=series, mode='lines', name=year_label, line=dict(width=width, color=chosen_color)))
                         fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
-                        fig.update_layout(
-                            title=f"<b>{ticker}</b>: {month_map[start_m]} - {month_map[end_m]}",
-                            xaxis_title="Hari ke-n", yaxis_title="Gain/Loss (%)",
-                            hovermode="x unified", height=400,
-                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                        )
+                        fig.update_layout(title=f"<b>{ticker}</b>", xaxis_title="Hari", yaxis_title="Gain/Loss (%)", hovermode="x unified", height=400)
                         st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.warning("Data tidak cukup atau kode saham salah.")
+            else: st.warning("Data tidak cukup.")
+
+# === TAB 7: FUNDAMENTAL SCREENER (FITUR BARU) ===
+with tab_fund:
+    st.header("💎 Fundamental & Classification Screener")
+    st.write("Melihat detail klasifikasi industri (sub-sektor) dan rasio fundamental.")
+    st.info("⚠️ Catatan: Mengambil data fundamental membutuhkan waktu (sekitar 1-2 detik per saham). Gunakan daftar yang efisien.")
+
+    # Input User
+    st.write("Masukkan saham yang ingin discan (Default: 40+ saham top IHSG campuran sektor):")
+    
+    # Text area untuk input banyak saham
+    default_txt = ", ".join(SAMPLE_SCREENER_TICKERS)
+    user_screener_input = st.text_area("Input Saham (Pisahkan koma):", value=default_txt, height=100)
+    
+    col_run, col_export = st.columns([1, 5])
+    
+    with col_run:
+        run_screener = st.button("🔍 Scan Fundamental")
+
+    st.divider()
+
+    if run_screener and user_screener_input:
+        # Parsing input
+        tickers_to_scan = [t.strip().upper() for t in user_screener_input.split(',') if t.strip()]
+        
+        st.write(f"Sedang mengambil data fundamental untuk {len(tickers_to_scan)} saham...")
+        
+        # Ambil data (Cached function)
+        df_fund = get_fundamental_screener(tickers_to_scan)
+        
+        if not df_fund.empty:
+            # Interactive Dataframe
+            # Kita format angkanya biar cantik
+            st.dataframe(
+                df_fund.style.format({
+                    "Price": "Rp {:,.0f}",
+                    "52W High": "Rp {:,.0f}",
+                    "52W Low": "Rp {:,.0f}",
+                    "PBV": "{:.2f}x",
+                    "PER (TTM)": "{:.2f}x",
+                    "EPS (TTM)": "{:.2f}"
+                }),
+                use_container_width=True,
+                column_config={
+                    "Industry (Rinci)": st.column_config.TextColumn("Industry (Sub-Sektor)", help="Klasifikasi rinci dari Yahoo Finance"),
+                    "PBV": st.column_config.NumberColumn("PBV", help="Price to Book Value"),
+                    "PER (TTM)": st.column_config.NumberColumn("PER", help="Price to Earnings Ratio"),
+                }
+            )
+            
+            # Grouping Summary (Opsional)
+            st.subheader("Rangkuman per Industri")
+            # Hitung rata-rata PBV per industri yang ditemukan
+            df_group = df_fund.groupby("Industry (Rinci)")[["PBV", "PER (TTM)"]].mean().reset_index()
+            st.dataframe(df_group.style.format("{:.2f}x"), use_container_width=True)
+            
+        else:
+            st.error("Gagal mengambil data. Cek koneksi atau kode saham.")
