@@ -295,14 +295,8 @@ def get_performance_matrix(raw_input):
         except Exception: continue
     return pd.DataFrame(results)
 
-# --- FUNGSI BARU: WIN/LOSS STATS & DETAIL GRID (Updated) ---
 @st.cache_data(ttl=600)
 def get_win_loss_details(raw_input):
-    """
-    Mengembalikan 2 objek:
-    1. Summary Dataframe (untuk tabel atas)
-    2. Dictionary Detail Dataframe (untuk grid kotak 30 hari)
-    """
     clean_input = raw_input.replace('\n', ',').replace(' ', ',')
     tickers = []
     for t in clean_input.split(','):
@@ -318,7 +312,7 @@ def get_win_loss_details(raw_input):
     except: return pd.DataFrame(), {}
 
     summary_results = []
-    detail_data = {} # Simpan raw data 30 hari disini
+    detail_data = {} 
 
     for t in tickers:
         try:
@@ -341,10 +335,8 @@ def get_win_loss_details(raw_input):
             df_30 = df.tail(30)
             if len(df_30) < 5: continue 
 
-            # Simpan detail data untuk grid
             detail_data[symbol] = df_30
 
-            # Hitung Statistik Summary
             green_days = df_30[df_30['Change'] > 0]
             red_days = df_30[df_30['Change'] < 0]
 
@@ -378,17 +370,15 @@ def create_stock_grid(tickers, chart_data):
         if df.empty or 'Close' not in df.columns: continue
         df = df.dropna()
         if len(df) < 2: continue
-        
-        # MA20
-        ma20 = df['Close'].rolling(window=20).mean()
-        
         last_p = df['Close'].iloc[-1]
         prev_p = df['Close'].iloc[-2]
         color = '#00C805' if float(last_p) >= float(prev_p) else '#FF333A'
         
+        # MA20
+        ma20 = df['Close'].rolling(window=20).mean()
+        
         fig.add_trace(go.Scatter(x=df.index, y=df['Close'], mode='lines', line=dict(color=color, width=1.5), name=ticker), row=row, col=col)
         fig.add_trace(go.Scatter(x=df.index, y=ma20, mode='lines', line=dict(color='#FF9800', width=1), name=f"{ticker} MA20", showlegend=False), row=row, col=col)
-        
         fig.add_vline(x=one_month_ago.timestamp() * 1000, line_width=1, line_dash="dot", line_color="blue", row=row, col=col)
         fig.update_xaxes(showticklabels=False, row=row, col=col)
         fig.update_yaxes(showticklabels=False, row=row, col=col)
@@ -419,7 +409,6 @@ def create_detail_chart(df, ticker, df_fin_filtered):
 st.title("📈 Super Stock Dashboard")
 default_tickers = ["BBCA.JK", "BBRI.JK", "BMRI.JK", "ASII.JK", "TLKM.JK", "UNVR.JK", "ADRO.JK", "ICBP.JK"] * 4 
 
-# TABS
 tab_grid, tab_vol, tab_sector, tab_watch, tab_detail, tab_cycle, tab_fund, tab_perf, tab_win = st.tabs([
     "📊 Grid", "🔊 Volume", "🏢 Sektor", "⭐ Watchlist", "🔎 Detail", "🔄 Cycle", "💎 Fundamental", "🚀 Performa", "🎲 Win/Loss Stats"
 ])
@@ -611,7 +600,7 @@ with tab_perf:
                 "1 Hari": pct_fmt, "1 Minggu": pct_fmt, "1 Bulan": pct_fmt,
                 "6 Bulan": pct_fmt, "YTD": pct_fmt, "1 Tahun": pct_fmt, "3 Tahun": pct_fmt})
 
-# === TAB 9: WIN/LOSS STATS & DETAIL GRID (NEW) ===
+# === TAB 9: WIN/LOSS STATS & DETAIL GRID (FIXED) ===
 with tab_win:
     st.header("🎲 Probabilitas Harian (30 Hari Terakhir)")
     st.write("Analisis jumlah hari Hijau vs Merah untuk menentukan tren dan probabilitas.")
@@ -619,13 +608,11 @@ with tab_win:
     
     if st.button("Hitung Probabilitas", key="btn_win"):
         with st.spinner("Menganalisis data harian..."):
-            # Panggil fungsi yang mengembalikan (Summary, Detail Dict)
             summary_df, detail_dict = get_win_loss_details(win_input)
             st.session_state['win_summary'] = summary_df
             st.session_state['win_details'] = detail_dict
             
     if 'win_summary' in st.session_state and not st.session_state['win_summary'].empty:
-        # 1. Tampilkan Summary Table
         st.subheader("Rangkuman Statistik")
         df_win = st.session_state['win_summary']
         def highlight_win(val):
@@ -638,10 +625,9 @@ with tab_win:
         st.divider()
         st.subheader("🗓️ Detail Pergerakan Harian (Grid 30 Hari)")
         
-        # 2. Tampilkan Detail Grid per Saham
         detail_data = st.session_state['win_details']
         
-        # CSS untuk Kotak Indah
+        # CSS (Disuntikkan sekali saja)
         st.markdown("""
         <style>
         .day-box {
@@ -663,23 +649,15 @@ with tab_win:
 
         for ticker, df_30 in detail_data.items():
             with st.expander(f"📊 {ticker} - Detail 30 Hari", expanded=True):
-                # Generate HTML Grid
                 html_code = "<div style='display: flex; flex-wrap: wrap;'>"
-                
-                # Loop dari data terlama ke terbaru (atau sebaliknya, disini urutan waktu)
-                # Kita balik biar yang paling kanan bawah adalah hari ini (standard kalender)
                 for date, row in df_30.iterrows():
                     val = row['Change']
                     color = "#00C805" if val >= 0 else "#FF333A"
                     date_str = date.strftime("%d %b")
                     val_str = f"{val:+.2f}%"
                     
-                    html_code += f"""
-                    <div class='day-box' style='background-color: {color};'>
-                        <div class='day-date'>{date_str}</div>
-                        <div class='day-val'>{val_str}</div>
-                    </div>
-                    """
-                html_code += "</div>"
+                    # HTML String dalam satu baris (tanpa indentasi) untuk menghindari error Markdown
+                    html_code += f"<div class='day-box' style='background-color: {color};'><div class='day-date'>{date_str}</div><div class='day-val'>{val_str}</div></div>"
                 
+                html_code += "</div>"
                 st.markdown(html_code, unsafe_allow_html=True)
