@@ -35,32 +35,17 @@ def save_data():
 saved_data = load_data()
 if 'watchlist' not in st.session_state:
     st.session_state.watchlist = saved_data["watchlist"] if (saved_data and "watchlist" in saved_data) else ["BBCA.JK", "GOTO.JK", "BBRI.JK"]
-
-# TAB 2 CHANGE: Default Volume Watchlist KOSONG (Hanya user input)
 if 'vol_watchlist' not in st.session_state:
-    st.session_state.vol_watchlist = saved_data["vol_watchlist"] if (saved_data and "vol_watchlist" in saved_data) else []
+    st.session_state.vol_watchlist = saved_data["vol_watchlist"] if (saved_data and "vol_watchlist" in saved_data) else ["GOTO.JK", "BBRI.JK", "BUMI.JK"]
 
-# --- 4. DATA MAPPING (Helper) ---
-SECTOR_MAP = {
-    "Banking": ["BBCA.JK", "BBRI.JK", "BMRI.JK", "BBNI.JK", "BRIS.JK", "ARTO.JK"],
-    "Energy": ["ADRO.JK", "PTBA.JK", "ITMG.JK", "PGAS.JK", "MDKA.JK", "ANTM.JK", "BUMI.JK"],
-    "Telco/Tech": ["TLKM.JK", "ISAT.JK", "EXCL.JK", "GOTO.JK", "BUKA.JK", "EMTK.JK"],
-    "Consumer": ["ICBP.JK", "INDF.JK", "UNVR.JK", "MYOR.JK", "KLBF.JK"],
-    "Auto": ["ASII.JK", "UNTR.JK", "SMGR.JK", "INTP.JK"]
-}
-
-SAMPLE_SCREENER_TICKERS = [
-    "BBCA.JK", "BBRI.JK", "BMRI.JK", "BBNI.JK", "BBTN.JK", "ARTO.JK", "BRIS.JK",
-    "TLKM.JK", "ISAT.JK", "EXCL.JK", "TOWR.JK", "TBIG.JK", "MTEL.JK",
-    "ADRO.JK", "PTBA.JK", "ITMG.JK", "BUMI.JK", "BYAN.JK",
-    "MDKA.JK", "ANTM.JK", "INCO.JK", "AMMN.JK",
-    "ICBP.JK", "INDF.JK", "UNVR.JK", "MYOR.JK",
-    "AMRT.JK", "MAPI.JK", "ACES.JK",
-    "ASII.JK", "UNTR.JK", "AUTO.JK",
-    "GOTO.JK", "BUKA.JK", "EMTK.JK",
-    "BSDE.JK", "CTRA.JK", "PWON.JK",
-    "CPIN.JK", "JPFA.JK"
+# --- 4. DATA STATIC (DAFTAR SAHAM) ---
+# List ini dipakai untuk Tab 1 (Grid) DAN Tab 2 (Sumber Data Top 20 Volume)
+GRID_TICKERS = [
+    "AALI.JK","ABBA.JK","ABDA.JK","ABMM.JK","ACES.JK","ACST.JK","ADES.JK","ADHI.JK","ADMF.JK","ADMG.JK","ADRO.JK","AGII.JK","AGRO.JK","AGRS.JK","AHAP.JK","AIMS.JK","AISA.JK","AKKU.JK","AKPI.JK","AKRA.JK","AKSI.JK","ALDO.JK","ALKA.JK","ALMI.JK","ALTO.JK","AMAG.JK","AMFG.JK","AMIN.JK","AMRT.JK","ANJT.JK","ANTM.JK","APEX.JK","APIC.JK","APII.JK","APLI.JK","APLN.JK","ARGO.JK","ARII.JK","ARNA.JK","ARTA.JK","ARTI.JK","ARTO.JK","ASBI.JK","ASDM.JK","ASGR.JK","ASII.JK","ASJT.JK","ASMI.JK","ASRI.JK","ASRM.JK","ASSA.JK","ATIC.JK","AUTO.JK","BABP.JK","BACA.JK","BAJA.JK","BALI.JK","BAPA.JK","BATA.JK","BAYU.JK","BBCA.JK","BBHI.JK","BBKP.JK","BBLD.JK","BBMD.JK","BBNI.JK","BBRI.JK","BBRM.JK","BBTN.JK","BBYB.JK","BCAP.JK","BCIC.JK","BCIP.JK","BDMN.JK","BEKS.JK","BEST.JK","BFIN.JK","BGTG.JK","BHIT.JK","BIKA.JK","BIMA.JK","BINA.JK","BIPI.JK","BIPP.JK","BIRD.JK","BISI.JK","BJBR.JK","BJTM.JK","BKDP.JK","BKSL.JK","BKSW.JK","BLTA.JK","BLTZ.JK","BMAS.JK","BMRI.JK","BMSR.JK","BMTR.JK","BNBA.JK","BNBR.JK","BNGA.JK","BNII.JK","BNLI.JK","BOLT.JK","BPFI.JK","BPII.JK","BRAM.JK","BRMS.JK","BRNA.JK","BRPT.JK","BSDE.JK","BSIM.JK","BSSR.JK","BSWD.JK","BTEK.JK","BTEL.JK","BTON.JK","BTPN.JK","BUDI.JK","BUKK.JK","BULL.JK","BUMI.JK","BUVA.JK","BVIC.JK","BWPT.JK","BYAN.JK","CANI.JK","CASS.JK","CEKA.JK","CENT.JK","CFIN.JK","CINT.JK","CITA.JK","CLPI.JK","CMNP.JK","CMPP.JK","CNKO.JK","CNTX.JK","COWL.JK","CPIN.JK","CPRO.JK","CSAP.JK","CTBN.JK","CTRA.JK","CTTH.JK","DART.JK","DEFI.JK","DEWA.JK","DGIK.JK","DILD.JK","DKFT.JK","DLTA.JK","DMAS.JK","DNAR.JK","DNET.JK","DOID.JK","DPNS.JK","DSFI.JK","DSNG.JK","DSSA.JK","DUTI.JK","DVLA.JK","DYAN.JK","ECII.JK","EKAD.JK","ELSA.JK","ELTY.JK","EMDE.JK","EMTK.JK","ENRG.JK","EPMT.JK","ERAA.JK","ERTX.JK","ESSA.JK","ESTI.JK","ETWA.JK","EXCL.JK","FAST.JK","FASW.JK","FISH.JK","FMII.JK","FORU.JK","FPNI.JK","GAMA.JK","GDST.JK","GDYR.JK","GEMA.JK","GEMS.JK","GGRM.JK","GIAA.JK","GJTL.JK","GLOB.JK","GMTD.JK","GOLD.JK","GOLL.JK","GPRA.JK","GSMF.JK","GTBO.JK","GWSA.JK","GZCO.JK","HADE.JK","HDFA.JK","HERO.JK","HEXA.JK","HITS.JK","HMSP.JK","HOME.JK","HOTL.JK","HRUM.JK","IATA.JK","IBFN.JK","IBST.JK","ICBP.JK","ICON.JK","IGAR.JK","IIKP.JK","IKAI.JK","IKBI.JK","IMAS.JK","IMJS.JK","IMPC.JK","INAF.JK","INAI.JK","INCI.JK","INCO.JK","INDF.JK","INDR.JK","INDS.JK","INDX.JK","INDY.JK","INKP.JK","INPC.JK","INPP.JK","INRU.JK","INTA.JK","INTD.JK","INTP.JK","IPOL.JK","ISAT.JK","ISSP.JK","ITMA.JK","ITMG.JK","JAWA.JK","JECC.JK","JIHD.JK","JKON.JK","JPFA.JK","JRPT.JK","JSMR.JK","JSPT.JK","JTPE.JK","KAEF.JK","KARW.JK","KBLI.JK","KBLM.JK","KBLV.JK","KBRI.JK","KDSI.JK","KIAS.JK","KICI.JK","KIJA.JK","KKGI.JK","KLBF.JK","KOBX.JK","KOIN.JK","KONI.JK","KOPI.JK","KPIG.JK","KRAS.JK","KREN.JK","LAPD.JK","LCGP.JK","LEAD.JK","LINK.JK","LION.JK","LMAS.JK","LMPI.JK","LMSH.JK","LPCK.JK","LPGI.JK","LPIN.JK","LPKR.JK","LPLI.JK","LPPF.JK","LPPS.JK","LRNA.JK","LSIP.JK","LTLS.JK","MAGP.JK","MAIN.JK","MAPI.JK","MAYA.JK","MBAP.JK","MBSS.JK","MBTO.JK","MCOR.JK","MDIA.JK","MDKA.JK","MDLN.JK","MDRN.JK","MEDC.JK","MEGA.JK","MERK.JK","META.JK","MFMI.JK","MGNA.JK","MICE.JK","MIDI.JK","MIKA.JK","MIRA.JK","MITI.JK","MKPI.JK","MLBI.JK","MLIA.JK","MLPL.JK","MLPT.JK","MMLP.JK","MNCN.JK","MPMX.JK","MPPA.JK","MRAT.JK","MREI.JK","MSKY.JK","MTDL.JK","MTFN.JK","MTLA.JK","MTSM.JK","MYOH.JK","MYOR.JK","MYTX.JK","NELY.JK","NIKL.JK","NIRO.JK","NISP.JK","NOBU.JK","NRCA.JK","OCAP.JK","OKAS.JK","OMRE.JK","PADI.JK","PALM.JK","PANR.JK","PANS.JK","PBRX.JK","PDES.JK","PEGE.JK","PGAS.JK","PGLI.JK","PICO.JK","PJAA.JK","PKPK.JK","PLAS.JK","PLIN.JK","PNBN.JK","PNBS.JK","PNIN.JK","PNLF.JK","PNSE.JK","POLY.JK","POOL.JK","PPRO.JK","PSAB.JK","PSDN.JK","PSKT.JK","PTBA.JK","PTIS.JK","PTPP.JK","PTRO.JK","PTSN.JK","PTSP.JK","PUDP.JK","PWON.JK","PYFA.JK","RAJA.JK","RALS.JK","RANC.JK","RBMS.JK","RDTX.JK","RELI.JK","RICY.JK","RIGS.JK","RIMO.JK","RODA.JK","ROTI.JK","RUIS.JK","SAFE.JK","SAME.JK","SCCO.JK","SCMA.JK","SCPI.JK","SDMU.JK","SDPC.JK","SDRA.JK","SGRO.JK","SHID.JK","SIDO.JK","SILO.JK","SIMA.JK","SIMP.JK","SIPD.JK","SKBM.JK","SKLT.JK","SKYB.JK","SMAR.JK","SMBR.JK","SMCB.JK","SMDM.JK","SMDR.JK","SMGR.JK","SMMA.JK","SMMT.JK","SMRA.JK","SMRU.JK","SMSM.JK","SOCI.JK","SONA.JK","SPMA.JK","SQMI.JK","SRAJ.JK","SRIL.JK","SRSN.JK","SRTG.JK","SSIA.JK","SSMS.JK","SSTM.JK","STAR.JK","STTP.JK","SUGI.JK","SULI.JK","SUPR.JK","TALF.JK","TARA.JK","TAXI.JK","TBIG.JK","TBLA.JK","TBMS.JK","TCID.JK","TELE.JK","TFCO.JK","TGKA.JK","TIFA.JK","TINS.JK","TIRA.JK","TIRT.JK","TKIM.JK","TLKM.JK","TMAS.JK","TMPO.JK","TOBA.JK","TOTL.JK","TOTO.JK","TOWR.JK","TPIA.JK","TPMA.JK","TRAM.JK","TRIL.JK","TRIM.JK","TRIO.JK","TRIS.JK","TRST.JK","TRUS.JK","TSPC.JK","ULTJ.JK","UNIC.JK","UNIT.JK","UNSP.JK","UNTR.JK","UNVR.JK","VICO.JK","VINS.JK","VIVA.JK","VOKS.JK","VRNA.JK","WAPO.JK","WEHA.JK","WICO.JK","WIIM.JK","WIKA.JK","WINS.JK","WOMF.JK","WSKT.JK","WTON.JK","YPAS.JK","YULE.JK","ZBRA.JK","SHIP.JK","CASA.JK","DAYA.JK","DPUM.JK","IDPR.JK","JGLE.JK","KINO.JK","MARI.JK","MKNT.JK","MTRA.JK","OASA.JK","POWR.JK","INCF.JK","WSBP.JK","PBSA.JK","PRDA.JK","BOGA.JK","BRIS.JK","PORT.JK","CARS.JK","MINA.JK","CLEO.JK","TAMU.JK","CSIS.JK","TGRA.JK","FIRE.JK","TOPS.JK","KMTR.JK","ARMY.JK","MAPB.JK","WOOD.JK","HRTA.JK","MABA.JK","HOKI.JK","MPOW.JK","MARK.JK","NASA.JK","MDKI.JK","BELL.JK","KIOS.JK","GMFI.JK","MTWI.JK","ZINC.JK","MCAS.JK","PPRE.JK","WEGE.JK","PSSI.JK","MORA.JK","DWGL.JK","PBID.JK","JMAS.JK","CAMP.JK","IPCM.JK","PCAR.JK","LCKM.JK","BOSS.JK","HELI.JK","JSKY.JK","INPS.JK","GHON.JK","TDPM.JK","DFAM.JK","NICK.JK","BTPS.JK","SPTO.JK","PRIM.JK","HEAL.JK","TRUK.JK","PZZA.JK","TUGU.JK","MSIN.JK","SWAT.JK","TNCA.JK","MAPA.JK","TCPI.JK","IPCC.JK","RISE.JK","BPTR.JK","POLL.JK","NFCX.JK","MGRO.JK","NUSA.JK","FILM.JK","ANDI.JK","LAND.JK","MOLI.JK","PANI.JK","DIGI.JK","CITY.JK","SAPX.JK","SURE.JK","HKMU.JK","MPRO.JK","DUCK.JK","GOOD.JK","SKRN.JK","YELO.JK","CAKK.JK","SATU.JK","SOSS.JK","DEAL.JK","POLA.JK","DIVA.JK","LUCK.JK","URBN.JK","SOTS.JK","ZONE.JK","PEHA.JK","FOOD.JK","BEEF.JK","POLI.JK","CLAY.JK","NATO.JK","JAYA.JK","COCO.JK","MTPS.JK","CPRI.JK","HRME.JK","POSA.JK","JAST.JK","FITT.JK","BOLA.JK","CCSI.JK","SFAN.JK","POLU.JK","KJEN.JK","KAYU.JK","ITIC.JK","PAMG.JK","IPTV.JK","BLUE.JK","ENVY.JK","EAST.JK","LIFE.JK","FUJI.JK","KOTA.JK","INOV.JK","ARKA.JK","SMKL.JK","HDIT.JK","KEEN.JK","BAPI.JK","TFAS.JK","GGRP.JK","OPMS.JK","NZIA.JK","SLIS.JK","PURE.JK","IRRA.JK","DMMX.JK","SINI.JK","WOWS.JK","ESIP.JK","TEBE.JK","KEJU.JK","PSGO.JK","AGAR.JK","IFSH.JK","REAL.JK","IFII.JK","PMJS.JK","UCID.JK","GLVA.JK","PGJO.JK","AMAR.JK","CSRA.JK","INDO.JK","AMOR.JK","TRIN.JK","DMND.JK","PURA.JK","PTPW.JK","TAMA.JK","IKAN.JK","SAMF.JK","SBAT.JK","KBAG.JK","CBMF.JK","RONY.JK","CSMI.JK","BBSS.JK","BHAT.JK","CASH.JK","TECH.JK","EPAC.JK","UANG.JK","PGUN.JK","SOFA.JK","PPGL.JK","TOYS.JK","SGER.JK","TRJA.JK","PNGO.JK","SCNP.JK","BBSI.JK","KMDS.JK","PURI.JK","SOHO.JK","HOMI.JK","ROCK.JK","ENZO.JK","PLAN.JK","PTDU.JK","ATAP.JK","VICI.JK","PMMP.JK","BANK.JK","WMUU.JK","EDGE.JK","UNIQ.JK","BEBS.JK","SNLK.JK","ZYRX.JK","LFLO.JK","FIMP.JK","TAPG.JK","NPGF.JK","LUCY.JK","ADCP.JK","HOPE.JK","MGLV.JK","TRUE.JK","LABA.JK","ARCI.JK","IPAC.JK","MASB.JK","BMHS.JK","FLMC.JK","NICL.JK","UVCR.JK","BUKA.JK","HAIS.JK","OILS.JK","GPSO.JK","MCOL.JK","RSGK.JK","RUNS.JK","SBMA.JK","CMNT.JK","GTSI.JK","IDEA.JK","KUAS.JK","BOBA.JK","MTEL.JK","DEPO.JK","BINO.JK","CMRY.JK","WGSH.JK","TAYS.JK","WMPP.JK","RMKE.JK","OBMD.JK","AVIA.JK","IPPE.JK","NASI.JK","BSML.JK","DRMA.JK","ADMR.JK","SEMA.JK","ASLC.JK","NETV.JK","BAUT.JK","ENAK.JK","NTBK.JK","SMKM.JK","STAA.JK","NANO.JK","BIKE.JK","WIRG.JK","SICO.JK","GOTO.JK","TLDN.JK","MTMH.JK","WINR.JK","IBOS.JK","OLIV.JK","ASHA.JK","SWID.JK","TRGU.JK","ARKO.JK","CHEM.JK","DEWI.JK","AXIO.JK","KRYA.JK","HATM.JK","RCCC.JK","GULA.JK","JARR.JK","AMMS.JK","RAFI.JK","KKES.JK","ELPI.JK","EURO.JK","KLIN.JK","TOOL.JK","BUAH.JK","CRAB.JK","MEDS.JK","COAL.JK","PRAY.JK","CBUT.JK","BELI.JK","MKTR.JK","OMED.JK","BSBK.JK","PDPP.JK","KDTN.JK","ZATA.JK","NINE.JK","MMIX.JK","PADA.JK","ISAP.JK","VTNY.JK","SOUL.JK","ELIT.JK","BEER.JK","CBPE.JK","SUNI.JK","CBRE.JK","WINE.JK","BMBL.JK","PEVE.JK","LAJU.JK","FWCT.JK","NAYZ.JK","IRSX.JK","PACK.JK","VAST.JK","CHIP.JK","HALO.JK","KING.JK","PGEO.JK","FUTR.JK","HILL.JK","BDKR.JK","PTMP.JK","SAGE.JK","TRON.JK","CUAN.JK","NSSS.JK","GTRA.JK","HAJJ.JK","JATI.JK","TYRE.JK","MPXL.JK","SMIL.JK","KLAS.JK","MAXI.JK","VKTR.JK","RELF.JK","AMMN.JK","CRSN.JK","GRPM.JK","WIDI.JK","TGUK.JK","INET.JK","MAHA.JK","RMKO.JK","CNMA.JK","FOLK.JK","HBAT.JK","GRIA.JK","PPRI.JK","ERAL.JK","CYBR.JK","MUTU.JK","LMAX.JK","HUMI.JK","MSIE.JK","RSCH.JK","BABY.JK","AEGS.JK","IOTF.JK","KOCI.JK","PTPS.JK","BREN.JK","STRK.JK","KOKA.JK","LOPI.JK","UDNG.JK","RGAS.JK","MSTI.JK","IKPM.JK","AYAM.JK","SURI.JK","ASLI.JK","GRPH.JK","SMGA.JK","UNTD.JK","TOSK.JK","MPIX.JK","ALII.JK","MKAP.JK","MEJA.JK","LIVE.JK","HYGN.JK","BAIK.JK","VISI.JK","AREA.JK","MHKI.JK","ATLA.JK","DATA.JK","SOLA.JK","BATR.JK","SPRE.JK","PART.JK","GOLF.JK","ISEA.JK","BLES.JK","GUNA.JK","LABS.JK","DOSS.JK","NEST.JK","PTMR.JK","VERN.JK","DAAZ.JK","BOAT.JK","NAIK.JK","AADI.JK","MDIY.JK","KSIX.JK","RATU.JK","YOII.JK","HGII.JK","BRRC.JK","DGWG.JK","CBDK.JK","OBAT.JK","MINE.JK","ASPR.JK","PSAT.JK","COIN.JK","CDIA.JK","BLOG.JK","MERI.JK","CHEK.JK","PMUI.JK","EMAS.JK","PJHB.JK","KAQI.JK","YUPI.JK","FORE.JK","MDLA.JK","DKHH.JK","AYLS.JK","DADA.JK","ASPI.JK","ESTA.JK","BESS.JK","AMAN.JK","CARE.JK","PIPA.JK","NCKL.JK","MENN.JK","AWAN.JK","MBMA.JK","RAAM.JK","DOOH.JK","CGAS.JK","NICE.JK","MSJA.JK","SMLE.JK","ACRO.JK","MANG.JK","WIFI.JK","FAPA.JK","DCII.JK","KETR.JK","DGNS.JK","UFOE.JK",
+    # Tambah sampai 100 ticker
 ]
+
+SAMPLE_SCREENER_TICKERS = GRID_TICKERS
 
 # --- 5. FUNGSI LOGIKA (BACKEND) ---
 
@@ -154,50 +139,44 @@ def get_seasonal_details(tickers_str, start_month, end_month, lookback_years=5):
     return results
 
 @st.cache_data(ttl=300)
-def get_stock_volume_stats(tickers_str):
-    if not tickers_str: return None
-    ticker_list = [t.strip().upper() for t in tickers_str.split(',') if t.strip()]
-    if not ticker_list: return None
-    data = yf.download(ticker_list, period="1mo", group_by='ticker', progress=False)
+def get_stock_volume_stats(tickers_list):
+    # Terima list langsung, bukan string
+    if not tickers_list: return None
+    
+    # Batch download 1 bulan
+    data = yf.download(tickers_list, period="1mo", group_by='ticker', progress=False)
     stats = []
-    for t in ticker_list:
+    
+    for t in tickers_list:
         try:
-            if len(ticker_list) == 1: df = data; symbol = ticker_list[0]
-            else: df = data[t]; symbol = t
+            if len(tickers_list) == 1: df = data; symbol = tickers_list[0]
+            else: 
+                # Cek ticker di multiindex
+                if isinstance(data.columns, pd.MultiIndex):
+                     if t not in data.columns.levels[0]: continue
+                df = data[t]; symbol = t
+
             if df.empty: continue
+            
+            # Cleaning cols
             if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
             df = df.loc[:, ~df.columns.duplicated()]
+            
+            # Get Last Values
+            last_vol = df['Volume'].iloc[-1]
+            last_close = df['Close'].iloc[-1]
+            avg_vol = df['Volume'].tail(5).mean()
+            
             stats.append({
                 "Ticker": symbol, 
-                "Last Close": df['Close'].iloc[-1], 
-                "Volume": df['Volume'].iloc[-1], 
-                "Avg Vol": df['Volume'].tail(5).mean(), 
-                "Est. Val": df['Close'].iloc[-1] * df['Volume'].iloc[-1]
+                "Last Close": last_close, 
+                "Volume": last_vol, 
+                "Avg Vol (5D)": avg_vol, 
+                "Est. Value": last_close * last_vol,
+                "Vol vs Avg": (last_vol / avg_vol) if avg_vol > 0 else 0
             })
         except: continue
     return pd.DataFrame(stats)
-
-@st.cache_data(ttl=600)
-def get_sector_performance(sector_name):
-    tickers = SECTOR_MAP.get(sector_name, [])
-    if not tickers: return pd.DataFrame()
-    data = yf.download(tickers, period="3mo", group_by='ticker', progress=False)
-    perf_list = []
-    for t in tickers:
-        try:
-            if len(tickers) == 1: df = data; symbol = tickers[0]
-            else: df = data[t]; symbol = t
-            if df.empty: continue
-            if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-            df = df.loc[:, ~df.columns.duplicated()]
-            df = df.sort_index()
-            curr = df['Close'].iloc[-1]
-            def calc_pct(d):
-                if len(df) > d: return ((curr - df['Close'].iloc[-(d+1)]) / df['Close'].iloc[-(d+1)]) * 100
-                return 0.0
-            perf_list.append({"Ticker": symbol, "Price": curr, "1D %": calc_pct(1), "1W %": calc_pct(5), "1M %": calc_pct(20)})
-        except: continue
-    return pd.DataFrame(perf_list)
 
 @st.cache_data(ttl=3600)
 def get_fundamental_screener(tickers_list):
@@ -411,85 +390,103 @@ def create_detail_chart(df, ticker, df_fin_filtered):
 # --- 7. MAIN UI ---
 st.title("📈 Super Stock Dashboard")
 
-# TAB LIST
+# TAB LIST UPDATED (SECTOR REMOVED)
 tab_grid, tab_vol, tab_watch, tab_detail, tab_cycle, tab_fund, tab_perf, tab_win = st.tabs([
     "📊 Grid", "🔊 Volume", "⭐ Watchlist", "🔎 Detail", "🔄 Cycle", "💎 Fundamental", "🚀 Performa", "🎲 Win/Loss Stats"
 ])
 
-# === TAB 1: GRID VIEW (USER INPUT ONLY) ===
+# === TAB 1: GRID (UPDATED LIST 40+ SAHAM) ===
 with tab_grid:
-    st.write("Grid Overview (Input Manual)")
+    st.write("Grid Overview (All Popular Stocks)")
+    if 'page' not in st.session_state: st.session_state.page = 1
+    items_per_page = 20
+    c1, _ = st.columns([1, 5])
+    curr_page = c1.number_input("Halaman", 1, math.ceil(len(GRID_TICKERS)/items_per_page), key="grid_page")
+    start, end = (curr_page - 1) * items_per_page, (curr_page - 1) * items_per_page + items_per_page
     
-    # 1. User Input untuk Grid
-    default_grid = "BBCA.JK, BBRI.JK, BMRI.JK, ASII.JK"
-    grid_input = st.text_area("Input Daftar Saham untuk Grid (Pisahkan koma):", value=default_grid)
+    batch = GRID_TICKERS[start:end]
     
-    # 2. Parsing Input
-    grid_tickers = []
-    if grid_input:
-        for t in grid_input.split(','):
+    with st.spinner("Memuat grafik..."):
+        data_grid = get_stock_history_bulk(batch)
+        if not data_grid.empty:
+            st.plotly_chart(create_stock_grid(batch, data_grid), use_container_width=True)
+
+# === TAB 2: VOLUME (UPDATED) ===
+with tab_vol:
+    st.header("Analisis Volume")
+    st.write("Cari volume saham spesifik atau lihat Top 20 dari saham-saham populer.")
+
+    # Input Section
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        # Text Area agar bisa input banyak
+        vol_input = st.text_area("Input Saham (Pisahkan koma/spasi/enter):", height=70, placeholder="Misal: BBCA, GOTO, ANTM, BUMI", key="vol_in_multi")
+    with c2:
+        st.write("")
+        btn_custom = st.button("🔍 Analisa Input", use_container_width=True)
+        st.write("")
+        btn_top20 = st.button("🔥 Top 20 Volume", use_container_width=True)
+
+    # Logic Display
+    df_vol_result = pd.DataFrame()
+
+    if btn_custom and vol_input:
+        # Parse Input
+        raw_list = vol_input.replace('\n', ',').replace(' ', ',').split(',')
+        clean_list = []
+        for t in raw_list:
             item = t.strip().upper()
             if item:
                 if len(item) == 4 and item.isalpha(): item += ".JK"
-                grid_tickers.append(item)
-    grid_tickers = list(set(grid_tickers))
-
-    # 3. Pagination Logic berdasarkan Input User
-    if 'page' not in st.session_state: st.session_state.page = 1
-    items_per_page = 20
-    
-    if grid_tickers:
-        c1, _ = st.columns([1, 5])
-        total_pages = math.ceil(len(grid_tickers)/items_per_page)
-        curr_page = c1.number_input("Halaman", 1, max(1, total_pages), key="grid_page")
+                clean_list.append(item)
         
-        start, end = (curr_page - 1) * items_per_page, (curr_page - 1) * items_per_page + items_per_page
-        batch = grid_tickers[start:end]
-        
-        with st.spinner("Memuat grafik..."):
-            data_grid = get_stock_history_bulk(batch)
-            if not data_grid.empty:
-                st.plotly_chart(create_stock_grid(batch, data_grid), use_container_width=True)
-    else:
-        st.info("Masukkan kode saham di atas untuk melihat Grid.")
-
-# === TAB 2: VOLUME (CLEAN SLATE / MANUAL ONLY) ===
-with tab_vol:
-    st.header("Analisis Volume (Manual Watchlist)")
+        if clean_list:
+            with st.spinner("Menganalisa input..."):
+                df_vol_result = get_stock_volume_stats(list(set(clean_list)))
+                st.session_state['vol_result'] = df_vol_result # Simpan session
     
-    # Input Area
-    c_in, c_add = st.columns([3, 1])
-    with c_in: n_vol = st.text_input("Tambah Saham:", placeholder="ADRO", key="v_in").strip().upper()
-    with c_add: 
-        st.write(""); st.write("") 
-        if st.button("➕ Tambah", key="b_av"): 
-            if n_vol:
-                if len(n_vol) == 4 and n_vol.isalpha(): n_vol += ".JK"
-                if n_vol not in st.session_state.vol_watchlist: 
-                    st.session_state.vol_watchlist.append(n_vol)
-                    save_data()
-                    st.rerun()
+    elif btn_top20:
+        with st.spinner("Scanning Top 20 Volume (dari 50+ saham populer)..."):
+            # Gunakan GRID_TICKERS sebagai universe
+            df_all = get_stock_volume_stats(GRID_TICKERS)
+            if df_all is not None and not df_all.empty:
+                # Sort by Volume Descending & Take Top 20
+                df_vol_result = df_all.sort_values(by="Volume", ascending=False).head(20)
+                st.session_state['vol_result'] = df_vol_result
 
-    # List Management (Multiselect)
-    if st.session_state.vol_watchlist:
-        if st.button("🗑️ Hapus Semua List", key="del_vol_all"):
-             st.session_state.vol_watchlist = []
-             save_data()
-             st.rerun()
-             
-        ed_vol = st.multiselect("Daftar Pantauan Volume:", options=st.session_state.vol_watchlist, default=st.session_state.vol_watchlist, key="ms_v")
-        if len(ed_vol) != len(st.session_state.vol_watchlist): 
-            st.session_state.vol_watchlist = ed_vol
-            save_data()
-            st.rerun()
-            
-        with st.spinner("Load Data Volume..."):
-            df_v = get_stock_volume_stats(",".join(st.session_state.vol_watchlist))
-            if df_v is not None and not df_v.empty:
-                sc = st.radio("Urutkan:", ["Volume", "Avg Vol", "Est. Val"], horizontal=True)
-                st.dataframe(df_v.sort_values(by=sc, ascending=False).style.format({"Last Close": "{:,.0f}", "Volume": "{:,.0f}", "Avg Vol": "{:,.0f}", "Est. Val": "Rp {:,.0f}"}), use_container_width=True)
-    else:
-        st.info("List Volume kosong. Tambahkan saham di atas.")
+    # Cek Session State untuk Persistence
+    if 'vol_result' in st.session_state and not st.session_state['vol_result'].empty:
+        df_show = st.session_state['vol_result']
+        st.divider()
+        st.subheader("Hasil Analisa Volume")
+        
+        # Pilihan Sorting
+        sort_col = st.radio("Urutkan berdasarkan:", ["Volume", "Est. Value", "Vol vs Avg"], horizontal=True)
+        
+        if sort_col == "Volume":
+            df_show = df_show.sort_values(by="Volume", ascending=False)
+        elif sort_col == "Est. Value":
+            df_show = df_show.sort_values(by="Est. Value", ascending=False)
+        elif sort_col == "Vol vs Avg":
+            df_show = df_show.sort_values(by="Vol vs Avg", ascending=False)
+
+        # Styling Highlight
+        def highlight_vol_spike(val):
+            # Highlight jika volume > 1.5x rata-rata
+            color = '#d4f7d4' if val >= 1.5 else ''
+            return f'background-color: {color}'
+
+        st.dataframe(
+            df_show.style.format({
+                "Last Close": "{:,.0f}", 
+                "Volume": "{:,.0f}", 
+                "Avg Vol (5D)": "{:,.0f}", 
+                "Est. Value": "Rp {:,.0f}",
+                "Vol vs Avg": "{:.2f}x"
+            }).applymap(highlight_vol_spike, subset=['Vol vs Avg']),
+            use_container_width=True,
+            hide_index=True
+        )
 
 with tab_watch:
     st.header("Watchlist Saya")
