@@ -344,25 +344,43 @@ with tab_cycle:
             
             if results_dict:
                 cols = st.columns(2)
+                # ... (kode sebelumnya di dalam tab_cycle) ...
+                
+                # Loop setiap saham
                 for idx, (ticker, years_data) in enumerate(results_dict.items()):
                     with cols[idx % 2]:
                         fig = go.Figure()
-                        # Sort agar tahun terbaru (yg mungkin partial) ada di paling bawah legend/paling atas garisnya
+                        
                         sorted_years = sorted(years_data.keys(), reverse=True)
                         
-                        for year_label in sorted_years:
+                        # --- DEFINISI WARNA: HITAM, BIRU, MERAH, HIJAU ---
+                        # Kamu bisa pakai nama warna Inggris atau Kode Hex
+                        # Urutan: Tahun Terbaru -> Hitam, Tahun sblmnya -> Biru, dst.
+                        my_colors = ['black', 'blue', 'red', 'green'] 
+                        
+                        for i, year_label in enumerate(sorted_years):
                             series = years_data[year_label]
-                            # Highlight Current Year dengan tebal/beda
-                            width = 3 if str(datetime.now().year) in year_label else 1
-                            opacity = 1 if str(datetime.now().year) in year_label else 0.6
+                            
+                            # Pilih warna secara bergantian (Cycle)
+                            # Jika tahun ke-5, dia akan kembali ke warna pertama (Hitam)
+                            chosen_color = my_colors[i % len(my_colors)]
+                            
+                            # Cek apakah ini tahun berjalan (Current Year)?
+                            is_current_year = str(datetime.now().year) in year_label
+                            
+                            # Opsional: Jika tahun ini, garis lebih tebal biar spesial
+                            line_width = 3 if is_current_year else 1.5
                             
                             fig.add_trace(go.Scatter(
-                                y=series, mode='lines', name=year_label,
-                                line=dict(width=width), opacity=opacity,
+                                y=series, 
+                                mode='lines', 
+                                name=year_label,
+                                line=dict(color=chosen_color, width=line_width), # <--- Pakai warna pilihan
                                 hovertemplate=f"<b>{year_label}</b><br>Hari ke-%{{x}}<br>Return: %{{y:.2f}}%<extra></extra>"
                             ))
                         
-                        fig.add_hline(y=0, line_dash="dash", line_color="white", opacity=0.5)
+                        # ... (sisa kode layout fig.update_layout sama seperti sebelumnya) ...
+                        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
                         fig.update_layout(
                             title=f"<b>{ticker}</b>: {month_map[start_m]} - {month_map[end_m]}",
                             xaxis_title="Hari ke-n", yaxis_title="Gain/Loss (%)",
