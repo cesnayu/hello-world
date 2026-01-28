@@ -70,26 +70,21 @@ def get_single_stock_detail(ticker, period):
 @st.cache_data(ttl=600)
 def get_seasonal_details(tickers_str, start_month, end_month, lookback_years=5):
     """
-    REVISI: Mengembalikan data detail PER TAHUN, bukan rata-rata.
-    Output: Dictionary { Ticker: { "2020-2021": Series, "2021-2022": Series } }
+    FIXED: Loop mulai dari 0 (Current Year Included) dan handle partial data.
     """
     if not tickers_str: return None
     ticker_list = [t.strip().upper() for t in tickers_str.split(',') if t.strip()]
     
-    # Ambil data buffer
+    # Ambil data buffer extra panjang
     start_date = datetime.now() - timedelta(days=(lookback_years + 2) * 365)
     data = yf.download(ticker_list, start=start_date, group_by='ticker', progress=False)
     
-    results = {} # Structure: { "BBCA": { "2020": [data], "2021": [data] } }
+    results = {} 
 
     for ticker in ticker_list:
         try:
-            if len(ticker_list) == 1:
-                df = data
-                symbol = ticker_list[0]
-            else:
-                df = data[ticker]
-                symbol = ticker
+            if len(ticker_list) == 1: df = data; symbol = ticker_list[0]
+            else: df = data[ticker]; symbol = ticker
             
             if df.empty: continue
             if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
@@ -100,30 +95,45 @@ def get_seasonal_details(tickers_str, start_month, end_month, lookback_years=5):
             stock_years_data = {}
             current_year = datetime.now().year
             
-            # Loop per tahun (Year Over Year)
-            for i in range(1, lookback_years + 1):
+            # === PERBAIKAN LOGIC DI SINI ===
+            # Loop dari 0 agar tahun ini (yang belum selesai) ikut terhitung
+            for i in range(0, lookback_years + 1):
                 y_end = current_year - i
-                # Jika start > end (misal Nov ke Jan), maka start year mundur 1 tahun
-                y_start = y_end if int(start_month) < int(end_month) else y_end - 1
                 
+                # Logic Cross Year (Misal Nov ke Apr)
+                if int(start_month) > int(end_month):
+                    # Nov 2025 (start) -> Apr 2026 (end)
+                    y_start = y_end - 1 
+                else:
+                    # Jun 2026 (start) -> Agust 2026 (end)
+                    y_start = y_end
+
                 try:
                     d_start = datetime(y_start, int(start_month), 1)
-                    # Handle end date (tanggal 28 aman)
+                    
+                    # Cek: Jika tanggal mulai cycle ini masih di masa depan, skip.
+                    # Contoh: Sekarang Jan 2026. User minta Juni-Agust.
+                    # Loop 0 akan cek Juni 2026. Ini belum terjadi -> Skip.
+                    if d_start > datetime.now():
+                        continue
+
+                    # Tanggal akhir (handle tanggal 28 agar aman di Feb)
                     d_end = datetime(y_end, int(end_month), 28) 
                     
                     label = f"{y_start}/{y_end}" if int(start_month) > int(end_month) else f"{y_end}"
                 except: continue
                 
+                # Filter Data
+                # Walaupun d_end Apr 2026 (masa depan), pandas akan filter data yang ada saja (sampai Jan 2026)
                 mask = (df['Date'] >= d_start) & (df['Date'] <= d_end)
                 df_period = df.loc[mask].copy()
                 
                 if df_period.empty: continue
                 
-                # Normalisasi ke Persentase (Start from 0%)
+                # Normalisasi %
                 first_price = df_period['Close'].iloc[0]
                 df_period['Rel_Change'] = ((df_period['Close'] - first_price) / first_price) * 100
                 
-                # Simpan Series (Reset index agar x-axis jadi 0,1,2,3...)
                 stock_years_data[label] = df_period['Rel_Change'].reset_index(drop=True)
             
             if stock_years_data:
@@ -306,7 +316,7 @@ with tab_detail:
                 c4.metric("High", f"{df_detail['High'].max():,.0f}")
             else: st.error("Data tidak ditemukan.")
 
-# === TAB 6: FEATURE CYCLE (REVISI - MULTI YEAR LINES) ===
+# === TAB 6: FEATURE CYCLE (REVISI - CURRENT YEAR FIX) ===
 with tab_cycle:
     st.header("🔄 Cycle Analysis (Year over Year)")
     st.write("Membandingkan pergerakan harga saham pada bulan yang sama di tahun-tahun berbeda.")
@@ -319,7 +329,7 @@ with tab_cycle:
     with c2:
         month_map = {1:"Jan", 2:"Feb", 3:"Mar", 4:"Apr", 5:"Mei", 6:"Jun", 7:"Jul", 8:"Agust", 9:"Sep", 10:"Okt", 11:"Nov", 12:"Des"}
         start_m = st.selectbox("Dari Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=10) # Nov
-        end_m = st.selectbox("Sampai Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=1) # Feb
+        end_m = st.selectbox("Sampai Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=3) # Apr
     with c3:
         years_lookback = st.slider("Tarik Data Berapa Tahun?", 3, 10, 5)
         st.write("")
@@ -333,32 +343,30 @@ with tab_cycle:
             results_dict = get_seasonal_details(cycle_tickers, start_m, end_m, years_lookback)
             
             if results_dict:
-                # Layout Grid untuk Chart (2 Kolom)
                 cols = st.columns(2)
-                
-                # Loop setiap saham -> Buat 1 Chart per Saham
                 for idx, (ticker, years_data) in enumerate(results_dict.items()):
-                    with cols[idx % 2]: # Selang seling kolom kiri/kanan
+                    with cols[idx % 2]:
                         fig = go.Figure()
+                        # Sort agar tahun terbaru (yg mungkin partial) ada di paling bawah legend/paling atas garisnya
+                        sorted_years = sorted(years_data.keys(), reverse=True)
                         
-                        # Loop setiap tahun di saham tersebut -> Buat garis
-                        for year_label, series in years_data.items():
+                        for year_label in sorted_years:
+                            series = years_data[year_label]
+                            # Highlight Current Year dengan tebal/beda
+                            width = 3 if str(datetime.now().year) in year_label else 1
+                            opacity = 1 if str(datetime.now().year) in year_label else 0.6
+                            
                             fig.add_trace(go.Scatter(
-                                y=series,
-                                mode='lines',
-                                name=year_label, # Label Tahun (misal 2021/2022)
+                                y=series, mode='lines', name=year_label,
+                                line=dict(width=width), opacity=opacity,
                                 hovertemplate=f"<b>{year_label}</b><br>Hari ke-%{{x}}<br>Return: %{{y:.2f}}%<extra></extra>"
                             ))
                         
-                        # Garis 0%
                         fig.add_hline(y=0, line_dash="dash", line_color="white", opacity=0.5)
-                        
                         fig.update_layout(
                             title=f"<b>{ticker}</b>: {month_map[start_m]} - {month_map[end_m]}",
-                            xaxis_title="Hari ke-n",
-                            yaxis_title="Gain/Loss (%)",
-                            hovermode="x unified",
-                            height=400,
+                            xaxis_title="Hari ke-n", yaxis_title="Gain/Loss (%)",
+                            hovermode="x unified", height=400,
                             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                         )
                         st.plotly_chart(fig, use_container_width=True)
