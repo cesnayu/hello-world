@@ -356,7 +356,7 @@ with tab_cycle:
                         # --- DEFINISI WARNA: HITAM, BIRU, MERAH, HIJAU ---
                         # Kamu bisa pakai nama warna Inggris atau Kode Hex
                         # Urutan: Tahun Terbaru -> Hitam, Tahun sblmnya -> Biru, dst.
-                        my_colors = ['black', 'blue', 'red', 'green'] 
+                        my_colors = ['black', 'blue', 'red', 'green','yellow'] 
                         
                         for i, year_label in enumerate(sorted_years):
                             series = years_data[year_label]
