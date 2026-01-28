@@ -72,14 +72,65 @@ def get_stock_history_bulk(tickers, period="3mo"):
 def get_single_stock_detail(ticker, period):
     if not ticker: return None
     try:
-        df = yf.download(ticker, period=period, progress=False)
+        # Download data harga
+        df = yf.download(ticker, period=period, progress=False, auto_adjust=False)
         if df.empty: return None
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+        
+        # Bersihkan kolom ganda
         df = df.loc[:, ~df.columns.duplicated()] 
+        
+        # Rename Adj Close jika Close tidak ada (safety)
+        if 'Close' not in df.columns and 'Adj Close' in df.columns:
+            df = df.rename(columns={'Adj Close': 'Close'})
+            
         df = df.reset_index()
         if 'Date' not in df.columns and 'Datetime' in df.columns: df = df.rename(columns={'Datetime': 'Date'})
+        
+        # Hapus timezone agar kompatibel
+        df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None)
+        
         return df
     except: return None
+
+# --- FUNGSI BARU: FUNDAMENTAL INFO (SNAPSHOT) ---
+@st.cache_data(ttl=3600)
+def get_fundamental_info(ticker):
+    """Mengambil Data PBV, PER, EPS saat ini"""
+    try:
+        info = yf.Ticker(ticker).info
+        return {
+            "pbv": info.get('priceToBook'),
+            "per": info.get('trailingPE'),
+            "eps": info.get('trailingEps'),
+            "mkt_cap": info.get('marketCap'),
+            "sector": info.get('industry', '-')
+        }
+    except:
+        return None
+
+# --- FUNGSI BARU: HISTORICAL FINANCIALS (BAR CHART) ---
+@st.cache_data(ttl=3600)
+def get_financials_history(ticker):
+    """Mengambil Data Revenue & Net Income (Quarterly & Annual)"""
+    try:
+        stock = yf.Ticker(ticker)
+        
+        # Ambil Quarterly
+        q_fin = stock.quarterly_financials.T
+        if not q_fin.empty:
+            q_fin.index = pd.to_datetime(q_fin.index).tz_localize(None)
+            q_fin = q_fin.sort_index()
+        
+        # Ambil Annual
+        a_fin = stock.financials.T
+        if not a_fin.empty:
+            a_fin.index = pd.to_datetime(a_fin.index).tz_localize(None)
+            a_fin = a_fin.sort_index()
+            
+        return q_fin, a_fin
+    except:
+        return pd.DataFrame(), pd.DataFrame()
 
 @st.cache_data(ttl=600)
 def get_seasonal_details(tickers_str, start_month, end_month, lookback_years=5):
@@ -194,11 +245,9 @@ def get_fundamental_screener(tickers_list):
     progress_bar.empty()
     return pd.DataFrame(screener_data)
 
-# --- FUNGSI BARU: PERFORMANCE MATRIX (Fix Logic + Industry) ---
 @st.cache_data(ttl=600) 
 def get_performance_matrix(raw_input):
     if not raw_input: return pd.DataFrame()
-    # A. Bersihkan Input
     clean_input = raw_input.replace('\n', ',').replace(' ', ',')
     tickers = []
     for t in clean_input.split(','):
@@ -209,7 +258,6 @@ def get_performance_matrix(raw_input):
     tickers = list(set(tickers))
     if not tickers: return pd.DataFrame()
 
-    # B. Download Data (Auto Adjust False = Raw Price)
     try:
         data = yf.download(tickers, period="5y", group_by='ticker', progress=False, auto_adjust=False)
     except Exception: return pd.DataFrame()
@@ -217,14 +265,9 @@ def get_performance_matrix(raw_input):
     results = []
     for t in tickers:
         try:
-            # === 1. FETCH INDUSTRY (New) ===
-            # Ini mungkin sedikit memperlambat, tapi sesuai request
-            try:
-                industry = yf.Ticker(t).info.get('industry', '-')
-            except:
-                industry = '-'
+            try: industry = yf.Ticker(t).info.get('industry', '-')
+            except: industry = '-'
 
-            # === 2. EXTRACT PRICE DATA ===
             if len(tickers) == 1: df = data; symbol = tickers[0]
             else:
                 if isinstance(data.columns, pd.MultiIndex):
@@ -263,15 +306,70 @@ def get_performance_matrix(raw_input):
             else: ytd_change = None
 
             results.append({
-                "Ticker": symbol,
-                "Industri": industry, # Kolom Baru
-                "Harga": curr_price,
+                "Ticker": symbol, "Industri": industry, "Harga": curr_price,
                 "1 Hari": ((curr_price - df['Close'].iloc[-2])/df['Close'].iloc[-2]) * 100,
                 "1 Minggu": get_pct_change(7), "1 Bulan": get_pct_change(30),
                 "6 Bulan": get_pct_change(180), "YTD": ytd_change,
                 "1 Tahun": get_pct_change(365), "3 Tahun": get_pct_change(365 * 3)
             })
         except Exception: continue
+    return pd.DataFrame(results)
+
+@st.cache_data(ttl=600)
+def get_win_loss_stats(raw_input):
+    clean_input = raw_input.replace('\n', ',').replace(' ', ',')
+    tickers = []
+    for t in clean_input.split(','):
+        item = t.strip().upper()
+        if item:
+            if len(item) == 4 and item.isalpha(): item += ".JK"
+            tickers.append(item)
+    tickers = list(set(tickers))
+    if not tickers: return pd.DataFrame()
+
+    try:
+        data = yf.download(tickers, period="3mo", group_by='ticker', progress=False, auto_adjust=False)
+    except: return pd.DataFrame()
+
+    results = []
+    for t in tickers:
+        try:
+            if len(tickers) == 1: df = data; symbol = tickers[0]
+            else:
+                if isinstance(data.columns, pd.MultiIndex):
+                     if t not in data.columns.levels[0]: continue
+                df = data[t]; symbol = t
+            
+            if df.empty: continue
+            if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+            
+            if 'Close' in df.columns: col = 'Close'
+            elif 'Adj Close' in df.columns: col = 'Adj Close'
+            else: continue
+
+            df['Change'] = df[col].pct_change() * 100
+            df = df.dropna()
+
+            df_30 = df.tail(30)
+            if len(df_30) < 5: continue 
+
+            green_days = df_30[df_30['Change'] > 0]
+            red_days = df_30[df_30['Change'] < 0]
+
+            count_green = len(green_days)
+            count_red = len(red_days)
+            win_rate = (count_green / len(df_30)) * 100
+
+            avg_gain = green_days['Change'].mean() if not green_days.empty else 0
+            avg_loss = red_days['Change'].mean() if not red_days.empty else 0
+            total_return_30d = ((df_30[col].iloc[-1] - df_30[col].iloc[0]) / df_30[col].iloc[0]) * 100
+
+            results.append({
+                "Ticker": symbol, "Total Candle": len(df_30), "Hari Hijau": count_green, "Hari Merah": count_red,
+                "Win Rate": win_rate, "Rata2 Naik": avg_gain, "Rata2 Turun": avg_loss, "Total Return (30 Candle)": total_return_30d
+            })
+        except: continue
+    
     return pd.DataFrame(results)
 
 # --- 6. VISUALISASI ---
@@ -298,22 +396,63 @@ def create_stock_grid(tickers, chart_data):
     fig.update_layout(height=max(300, rows * 180), showlegend=False, margin=dict(l=10, r=10, t=40, b=10))
     return fig
 
-def create_detail_chart(df, ticker):
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
+# --- UPDATED: DETAIL CHART DENGAN ROW 3 (FUNDAMENTALS) ---
+def create_detail_chart(df, ticker, df_fin_filtered):
+    """
+    df: Data Harga (Daily)
+    df_fin_filtered: Data Financials (Quarterly/Annual) yang sudah difilter range-nya
+    """
+    # Create 3 Rows: Price, Volume, Financials
+    fig = make_subplots(
+        rows=3, cols=1, 
+        shared_xaxes=True, 
+        vertical_spacing=0.05, 
+        row_heights=[0.5, 0.2, 0.3],
+        subplot_titles=(f"Price Action: {ticker}", "Volume", "Revenue & Net Income")
+    )
+
+    # 1. Candlestick
     fig.add_trace(go.Candlestick(x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price", showlegend=False), row=1, col=1)
     if len(df) > 20: fig.add_trace(go.Scatter(x=df['Date'], y=df['Close'].rolling(20).mean(), line=dict(color='orange', width=1), name="MA 20"), row=1, col=1)
+    
+    # 2. Volume
     colors = ['#00C805' if c >= o else '#FF333A' for c, o in zip(df['Close'], df['Open'])]
     fig.add_trace(go.Bar(x=df['Date'], y=df['Volume'], marker_color=colors, name="Volume", showlegend=False), row=2, col=1)
-    fig.update_layout(title=f"Analisa Teknikal: {ticker}", yaxis_title="Harga", xaxis_rangeslider_visible=False, hovermode="x unified", height=600)
+    
+    # 3. Fundamentals (Bar Chart)
+    if not df_fin_filtered.empty:
+        # Cek kolom yang tersedia (biasanya 'Total Revenue' atau 'Revenue')
+        # yfinance suka gonta-ganti nama kolom
+        rev_col = next((c for c in df_fin_filtered.columns if 'Revenue' in c or 'revenue' in c), None)
+        inc_col = next((c for c in df_fin_filtered.columns if 'Net Income' in c or 'netIncome' in c), None)
+        
+        if rev_col:
+            fig.add_trace(go.Bar(
+                x=df_fin_filtered.index, 
+                y=df_fin_filtered[rev_col], 
+                name="Revenue", 
+                marker_color='blue',
+                opacity=0.6
+            ), row=3, col=1)
+            
+        if inc_col:
+            fig.add_trace(go.Bar(
+                x=df_fin_filtered.index, 
+                y=df_fin_filtered[inc_col], 
+                name="Net Income", 
+                marker_color='green',
+                opacity=0.8
+            ), row=3, col=1)
+
+    fig.update_layout(height=800, xaxis_rangeslider_visible=False, hovermode="x unified")
     return fig
 
 # --- 7. MAIN UI ---
 st.title("📈 Super Stock Dashboard")
 default_tickers = ["BBCA.JK", "BBRI.JK", "BMRI.JK", "ASII.JK", "TLKM.JK", "UNVR.JK", "ADRO.JK", "ICBP.JK"] * 4 
 
-# TABS
-tab_grid, tab_vol, tab_sector, tab_watch, tab_detail, tab_cycle, tab_fund, tab_perf = st.tabs([
-    "📊 Grid", "🔊 Volume", "🏢 Sektor", "⭐ Watchlist", "🔎 Detail", "🔄 Cycle", "💎 Fundamental", "🚀 Performa"
+tab_grid, tab_vol, tab_sector, tab_watch, tab_detail, tab_cycle, tab_fund, tab_perf, tab_win = st.tabs([
+    "📊 Grid", "🔊 Volume", "🏢 Sektor", "⭐ Watchlist", "🔎 Detail", "🔄 Cycle", "💎 Fundamental", "🚀 Performa", "🎲 Win/Loss Stats"
 ])
 
 with tab_grid:
@@ -374,6 +513,7 @@ with tab_watch:
             dw = get_stock_history_bulk(cw)
             if not dw.empty: st.plotly_chart(create_stock_grid(cw, dw), use_container_width=True)
 
+# === TAB 5: DETAIL (UPDATED with Fundamentals) ===
 with tab_detail:
     st.header("🔎 Analisa Saham Mendalam")
     col_search, col_period = st.columns([2, 3])
@@ -382,22 +522,65 @@ with tab_detail:
         detail_ticker = st.text_input("Ketik Kode Saham:", value=default_ticker, key="detail_input").strip().upper()
     with col_period:
         period_options = ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"]
-        selected_period_code = st.select_slider("Pilih Rentang Waktu:", options=period_options, value="1y")
+        period_labels = {"1mo": "1 Bulan", "3mo": "3 Bulan", "6mo": "6 Bulan", "1y": "1 Tahun", "2y": "2 Tahun", "5y": "5 Tahun", "max": "Sejak IPO"}
+        selected_period_code = st.select_slider("Pilih Rentang Waktu:", options=period_options, value="1y", format_func=lambda x: period_labels[x])
     st.divider()
+    
     if detail_ticker:
         with st.spinner(f"Mengambil data {detail_ticker}..."):
+            # 1. Ambil Harga OHLCV
             df_detail = get_single_stock_detail(detail_ticker, selected_period_code)
+            
+            # 2. Ambil Info Fundamental (Snapshot)
+            fund_info = get_fundamental_info(detail_ticker)
+            
             if df_detail is not None and not df_detail.empty:
-                st.plotly_chart(create_detail_chart(df_detail, detail_ticker), use_container_width=True)
-                last = df_detail.iloc[-1]; prev = df_detail.iloc[-2]
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Harga", f"{last['Close']:,.0f}")
-                c2.metric("Change", f"{last['Close']-prev['Close']:,.0f}", f"{(last['Close']-prev['Close'])/prev['Close']*100:.2f}%")
-                c3.metric("Volume", f"{last['Volume']:,.0f}")
-                c4.metric("High", f"{df_detail['High'].max():,.0f}")
+                # --- TAMPILAN HEADER (METRICS) ---
+                last_row = df_detail.iloc[-1]
+                prev_row = df_detail.iloc[-2] if len(df_detail) > 1 else last_row
+                change = last_row['Close'] - prev_row['Close']
+                pct_change = (change / prev_row['Close']) * 100
+                
+                # Baris 1: Harga & Volume
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Harga", f"{last_row['Close']:,.0f}", f"{pct_change:.2f}%")
+                m2.metric("Volume", f"{last_row['Volume']:,.0f}")
+                m3.metric("High", f"{df_detail['High'].max():,.0f}")
+                
+                # Baris 2: Fundamental Ratios
+                if fund_info:
+                    m4.metric("Market Cap", f"{fund_info['mkt_cap']:,.0f}" if fund_info['mkt_cap'] else "-")
+                    f1, f2, f3, f4 = st.columns(4)
+                    f1.metric("PER (TTM)", f"{fund_info['per']:.2f}x" if fund_info['per'] else "-")
+                    f2.metric("PBV", f"{fund_info['pbv']:.2f}x" if fund_info['pbv'] else "-")
+                    f3.metric("EPS (TTM)", f"{fund_info['eps']:.2f}" if fund_info['eps'] else "-")
+                    f4.metric("Industri", fund_info['sector'])
+
+                # --- PERSIAPAN GRAFIK FUNDAMENTAL ---
+                # Ambil data financial history
+                q_fin, a_fin = get_financials_history(detail_ticker)
+                
+                # Tentukan mau pakai Annual atau Quarterly berdasarkan range slider
+                # Jika range > 2 tahun, pakai Annual biar tidak terlalu rapat. Jika < 2 tahun, Quarterly.
+                is_long_term = selected_period_code in ["2y", "5y", "max"]
+                df_fin_use = a_fin if is_long_term and not a_fin.empty else q_fin
+                
+                # Jika Annual kosong tapi Quarterly ada (atau sebaliknya), pakai yang ada aja
+                if df_fin_use.empty: 
+                    df_fin_use = q_fin if not q_fin.empty else a_fin
+
+                # Filter Fundamental Data agar sesuai dengan Range Chart Harga
+                start_date_chart = df_detail['Date'].min()
+                if not df_fin_use.empty:
+                    df_fin_filtered = df_fin_use[df_fin_use.index >= start_date_chart]
+                else:
+                    df_fin_filtered = pd.DataFrame()
+
+                # --- PLOT CHART (3 ROWS) ---
+                st.plotly_chart(create_detail_chart(df_detail, detail_ticker, df_fin_filtered), use_container_width=True)
+                
             else: st.error("Data tidak ditemukan.")
 
-# === TAB 6: CYCLE (PERSISTENCE) ===
 with tab_cycle:
     st.header("🔄 Cycle Analysis")
     c1, c2, c3 = st.columns([2, 1, 1])
@@ -414,7 +597,6 @@ with tab_cycle:
         if st.button("🚀 Bandingkan", key="btn_cycle"):
             with st.spinner("Menganalisa..."):
                 st.session_state['cycle_data'] = get_seasonal_details(cycle_tickers, start_m, end_m, years_lookback)
-
     st.divider()
     if 'cycle_data' in st.session_state and st.session_state['cycle_data']:
         results_dict = st.session_state['cycle_data']
@@ -436,7 +618,6 @@ with tab_cycle:
                     st.plotly_chart(fig, use_container_width=True)
         else: st.warning("Data tidak cukup.")
 
-# === TAB 7: FUNDAMENTAL (PERSISTENCE) ===
 with tab_fund:
     st.header("💎 Fundamental & Classification Screener")
     default_txt = ", ".join(SAMPLE_SCREENER_TICKERS)
@@ -447,7 +628,6 @@ with tab_fund:
             tickers_to_scan = [t.strip().upper() for t in user_screener_input.split(',') if t.strip()]
             st.write(f"Sedang mengambil data fundamental untuk {len(tickers_to_scan)} saham...")
             st.session_state['fund_data'] = get_fundamental_screener(tickers_to_scan)
-
     st.divider()
     if 'fund_data' in st.session_state and not st.session_state['fund_data'].empty:
         df_fund = st.session_state['fund_data']
@@ -464,41 +644,48 @@ with tab_fund:
                     "EPS": st.column_config.NumberColumn("EPS", format="%.2f")})
             st.write("")
 
-# === TAB 8: PERFORMANCE MATRIX (PERSISTENCE + INDUSTRY + RAW PRICE) ===
 with tab_perf:
     st.header("🚀 Tabel Performa Saham")
     st.write("Data menggunakan **Raw Price** & **Calendar Slicing**. Menampilkan Industri.")
-
     def_perf = ", ".join(st.session_state.watchlist) if st.session_state.watchlist else "ADRO.JK\nBBCA.JK\nBBRI.JK\nGOTO.JK"
     perf_tickers_input = st.text_area("Input Saham:", value=def_perf, height=100, key="perf_in_main")
-    
     if st.button("Hitung Performa", key="btn_perf"):
         with st.spinner("Mengambil Data & Metadata..."):
             st.session_state['perf_data'] = get_performance_matrix(perf_tickers_input)
-            
     if 'perf_data' in st.session_state and not st.session_state['perf_data'].empty:
         df_perf = st.session_state['perf_data']
         pct_fmt = st.column_config.NumberColumn(format="%.2f%%")
-        
         def color_negative_red(val):
             if val is None or pd.isna(val): return 'color: gray'
             color = '#00C805' if val > 0 else '#FF333A' if val < 0 else 'black'
             return f'color: {color}; font-weight: bold'
-
         styled_df = df_perf.style.format({
             "1 Hari": "{:.2f}", "1 Minggu": "{:.2f}", "1 Bulan": "{:.2f}",
             "6 Bulan": "{:.2f}", "YTD": "{:.2f}", "1 Tahun": "{:.2f}", "3 Tahun": "{:.2f}"
         }).applymap(color_negative_red, subset=["1 Hari", "1 Minggu", "1 Bulan", "6 Bulan", "YTD", "1 Tahun", "3 Tahun"])
-
-        st.dataframe(
-            styled_df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
+        st.dataframe(styled_df, use_container_width=True, hide_index=True, column_config={
                 "Ticker": st.column_config.TextColumn("Kode"),
-                "Industri": st.column_config.TextColumn("Industri"), # Kolom Baru
+                "Industri": st.column_config.TextColumn("Industri"), 
                 "Harga": st.column_config.NumberColumn("Harga", format="Rp %.0f"),
                 "1 Hari": pct_fmt, "1 Minggu": pct_fmt, "1 Bulan": pct_fmt,
-                "6 Bulan": pct_fmt, "YTD": pct_fmt, "1 Tahun": pct_fmt, "3 Tahun": pct_fmt
-            }
-        )
+                "6 Bulan": pct_fmt, "YTD": pct_fmt, "1 Tahun": pct_fmt, "3 Tahun": pct_fmt})
+
+with tab_win:
+    st.header("🎲 Probabilitas Harian (30 Hari Terakhir)")
+    st.write("Analisis jumlah hari Hijau vs Merah untuk menentukan tren dan probabilitas.")
+    win_input = st.text_area("Input Saham:", value=def_perf, height=100, key="win_in")
+    if st.button("Hitung Probabilitas", key="btn_win"):
+        with st.spinner("Menganalisis data harian..."):
+            st.session_state['win_data'] = get_win_loss_stats(win_input)
+    if 'win_data' in st.session_state and not st.session_state['win_data'].empty:
+        df_win = st.session_state['win_data']
+        def highlight_win(val):
+            color = '#d4f7d4' if val >= 60 else '#f7d4d4' if val <= 40 else ''
+            return f'background-color: {color}'
+        st.dataframe(df_win.style.format({
+                "Win Rate": "{:.1f}%",
+                "Rata2 Naik": "+{:.2f}%",
+                "Rata2 Turun": "{:.2f}%",
+                "Total Return (30 Candle)": "{:.2f}%"
+            }).applymap(highlight_win, subset=['Win Rate']), use_container_width=True, hide_index=True)
+        st.info("💡 **Tips Strategi:** Jika Win Rate > 60% (Hijau), beli saat koreksi (merah). Jika Win Rate < 40% (Merah), hindari tangkap pisau jatuh.")
