@@ -38,7 +38,7 @@ if 'watchlist' not in st.session_state:
 if 'vol_watchlist' not in st.session_state:
     st.session_state.vol_watchlist = saved_data["vol_watchlist"] if (saved_data and "vol_watchlist" in saved_data) else ["GOTO.JK", "BBRI.JK", "BUMI.JK"]
 
-# --- 4. DATA MAPPING (SEKTOR UMUM - TAB 3) ---
+# --- 4. DATA MAPPING ---
 SECTOR_MAP = {
     "Banking": ["BBCA.JK", "BBRI.JK", "BMRI.JK", "BBNI.JK", "BRIS.JK", "ARTO.JK"],
     "Energy": ["ADRO.JK", "PTBA.JK", "ITMG.JK", "PGAS.JK", "MDKA.JK", "ANTM.JK", "BUMI.JK"],
@@ -47,30 +47,17 @@ SECTOR_MAP = {
     "Auto": ["ASII.JK", "UNTR.JK", "SMGR.JK", "INTP.JK"]
 }
 
-# --- LIST SAHAM UNTUK SCREENER (SAMPEL BERAGAM) ---
-# Ini daftar representatif untuk demo cepat. User bisa input manual nanti.
+# --- LIST SAMPEL SCREENER ---
 SAMPLE_SCREENER_TICKERS = [
-    # Banks
     "BBCA.JK", "BBRI.JK", "BMRI.JK", "BBNI.JK", "BBTN.JK", "ARTO.JK", "BRIS.JK",
-    # Telco
-    "TLKM.JK", "ISAT.JK", "EXCL.JK",
-    # Towers (Infrastructure)
-    "TOWR.JK", "TBIG.JK", "MTEL.JK", "CENT.JK",
-    # Coal
-    "ADRO.JK", "PTBA.JK", "ITMG.JK", "HRUM.JK", "BUMI.JK", "BYAN.JK",
-    # Gold/Metal
-    "MDKA.JK", "ANTM.JK", "INCO.JK", "TINS.JK", "AMMN.JK",
-    # Consumer
-    "ICBP.JK", "INDF.JK", "UNVR.JK", "MYOR.JK", "CMRY.JK", "ADES.JK",
-    # Retail
-    "AMRT.JK", "MAPI.JK", "ACES.JK", "MIDI.JK",
-    # Auto & Heavy Eq
-    "ASII.JK", "UNTR.JK", "AUTO.JK", "DRMA.JK",
-    # Tech
-    "GOTO.JK", "BUKA.JK", "EMTK.JK", "BELI.JK",
-    # Property
-    "BSDE.JK", "CTRA.JK", "PWON.JK", "SMRA.JK",
-    # Poultry
+    "TLKM.JK", "ISAT.JK", "EXCL.JK", "TOWR.JK", "TBIG.JK", "MTEL.JK",
+    "ADRO.JK", "PTBA.JK", "ITMG.JK", "BUMI.JK", "BYAN.JK",
+    "MDKA.JK", "ANTM.JK", "INCO.JK", "AMMN.JK",
+    "ICBP.JK", "INDF.JK", "UNVR.JK", "MYOR.JK",
+    "AMRT.JK", "MAPI.JK", "ACES.JK",
+    "ASII.JK", "UNTR.JK", "AUTO.JK",
+    "GOTO.JK", "BUKA.JK", "EMTK.JK",
+    "BSDE.JK", "CTRA.JK", "PWON.JK",
     "CPIN.JK", "JPFA.JK"
 ]
 
@@ -179,52 +166,39 @@ def get_sector_performance(sector_name):
         except: continue
     return pd.DataFrame(perf_list)
 
-# --- FUNGSI BARU: FUNDAMENTAL SCREENER (HEAVY TASK) ---
-@st.cache_data(ttl=3600) # Cache 1 jam karena data fundamental jarang berubah
+@st.cache_data(ttl=3600)
 def get_fundamental_screener(tickers_list):
-    """
-    Mengambil data detail: Industry, PBV, PER, EPS, 52W High/Low
-    """
     screener_data = []
-    
-    # Progress bar karena ini bisa lama
     progress_bar = st.progress(0)
     total = len(tickers_list)
     
     for i, ticker in enumerate(tickers_list):
         try:
             stock = yf.Ticker(ticker)
-            info = stock.info # Ini request API yang berat (1 request per saham)
+            info = stock.info 
             
-            # Ekstraksi Data yang diminta user
-            industry = info.get('industry', 'N/A')
+            industry = info.get('industry', 'Others/Unknown') # Sub-Sektor
             curr_price = info.get('currentPrice', info.get('previousClose', 0))
             high_52 = info.get('fiftyTwoWeekHigh', 0)
             low_52 = info.get('fiftyTwoWeekLow', 0)
-            
-            # Fundamental
             pbv = info.get('priceToBook', None)
             per = info.get('trailingPE', None)
             eps_ttm = info.get('trailingEps', None)
             
             screener_data.append({
                 "Ticker": ticker,
-                "Industry (Rinci)": industry, # Klasifikasi Rinci
-                "Price": curr_price,
-                "52W High": high_52,
-                "52W Low": low_52,
-                "PBV": pbv,
-                "PER (TTM)": per,
-                "EPS (TTM)": eps_ttm
+                "Industry": industry,
+                "Price": float(curr_price) if curr_price else 0,
+                "52W High": float(high_52) if high_52 else 0,
+                "52W Low": float(low_52) if low_52 else 0,
+                "PBV": float(pbv) if pbv else None, # Pastikan float/None
+                "PER": float(per) if per else None,
+                "EPS": float(eps_ttm) if eps_ttm else None
             })
-            
-        except Exception:
-            pass # Skip ticker error
-        
-        # Update progress
+        except Exception: pass
         progress_bar.progress((i + 1) / total)
         
-    progress_bar.empty() # Hilangkan bar setelah selesai
+    progress_bar.empty()
     return pd.DataFrame(screener_data)
 
 # --- 6. VISUALISASI ---
@@ -264,12 +238,12 @@ def create_detail_chart(df, ticker):
 st.title("📈 Super Stock Dashboard")
 default_tickers = ["BBCA.JK", "BBRI.JK", "BMRI.JK", "ASII.JK", "TLKM.JK", "UNVR.JK", "ADRO.JK", "ICBP.JK"] * 4 
 
-# UPDATE TABS: TAMBAH TAB 7 (SCREENER)
+# TABS
 tab_grid, tab_vol, tab_sector, tab_watch, tab_detail, tab_cycle, tab_fund = st.tabs([
     "📊 Grid", "🔊 Volume", "🏢 Sektor", "⭐ Watchlist", "🔎 Detail", "🔄 Cycle", "💎 Fundamental"
 ])
 
-# === TAB 1-6 (KODE LAMA, DIPERSINGKAT AGAR MUAT, LOGIKA SAMA) ===
+# === TAB 1-6 (STANDAR) ===
 with tab_grid:
     st.write("Grid Overview")
     if 'page' not in st.session_state: st.session_state.page = 1
@@ -386,60 +360,52 @@ with tab_cycle:
                         st.plotly_chart(fig, use_container_width=True)
             else: st.warning("Data tidak cukup.")
 
-# === TAB 7: FUNDAMENTAL SCREENER (FITUR BARU) ===
+# === TAB 7: FUNDAMENTAL SCREENER (FIXED) ===
 with tab_fund:
     st.header("💎 Fundamental & Classification Screener")
-    st.write("Melihat detail klasifikasi industri (sub-sektor) dan rasio fundamental.")
-    st.info("⚠️ Catatan: Mengambil data fundamental membutuhkan waktu (sekitar 1-2 detik per saham). Gunakan daftar yang efisien.")
+    st.write("Dikelompokkan berdasarkan Industri (Sub-Sektor).")
 
-    # Input User
-    st.write("Masukkan saham yang ingin discan (Default: 40+ saham top IHSG campuran sektor):")
-    
-    # Text area untuk input banyak saham
     default_txt = ", ".join(SAMPLE_SCREENER_TICKERS)
     user_screener_input = st.text_area("Input Saham (Pisahkan koma):", value=default_txt, height=100)
     
     col_run, col_export = st.columns([1, 5])
-    
-    with col_run:
-        run_screener = st.button("🔍 Scan Fundamental")
+    with col_run: run_screener = st.button("🔍 Scan Fundamental")
 
     st.divider()
 
     if run_screener and user_screener_input:
-        # Parsing input
         tickers_to_scan = [t.strip().upper() for t in user_screener_input.split(',') if t.strip()]
-        
         st.write(f"Sedang mengambil data fundamental untuk {len(tickers_to_scan)} saham...")
         
-        # Ambil data (Cached function)
         df_fund = get_fundamental_screener(tickers_to_scan)
         
         if not df_fund.empty:
-            # Interactive Dataframe
-            # Kita format angkanya biar cantik
-            st.dataframe(
-                df_fund.style.format({
-                    "Price": "Rp {:,.0f}",
-                    "52W High": "Rp {:,.0f}",
-                    "52W Low": "Rp {:,.0f}",
-                    "PBV": "{:.2f}x",
-                    "PER (TTM)": "{:.2f}x",
-                    "EPS (TTM)": "{:.2f}"
-                }),
-                use_container_width=True,
-                column_config={
-                    "Industry (Rinci)": st.column_config.TextColumn("Industry (Sub-Sektor)", help="Klasifikasi rinci dari Yahoo Finance"),
-                    "PBV": st.column_config.NumberColumn("PBV", help="Price to Book Value"),
-                    "PER (TTM)": st.column_config.NumberColumn("PER", help="Price to Earnings Ratio"),
-                }
-            )
+            # === LOGIKA BARU: TABEL TERPISAH PER INDUSTRI ===
+            unique_industries = df_fund["Industry"].unique()
             
-            # Grouping Summary (Opsional)
-            st.subheader("Rangkuman per Industri")
-            # Hitung rata-rata PBV per industri yang ditemukan
-            df_group = df_fund.groupby("Industry (Rinci)")[["PBV", "PER (TTM)"]].mean().reset_index()
-            st.dataframe(df_group.style.format("{:.2f}x"), use_container_width=True)
-            
+            for industry in sorted(unique_industries):
+                # Filter data untuk industri ini
+                df_sub = df_fund[df_fund["Industry"] == industry].copy()
+                
+                # Buang kolom 'Industry' agar tidak redundant di tabel
+                df_sub = df_sub.drop(columns=["Industry"])
+                
+                st.subheader(f"🏭 {industry}")
+                
+                # Tampilkan tabel menggunakan column_config (ANTI ERROR)
+                st.dataframe(
+                    df_sub,
+                    use_container_width=True,
+                    column_config={
+                        "Price": st.column_config.NumberColumn("Price", format="Rp %.0f"),
+                        "52W High": st.column_config.NumberColumn("52W High", format="Rp %.0f"),
+                        "52W Low": st.column_config.NumberColumn("52W Low", format="Rp %.0f"),
+                        "PBV": st.column_config.NumberColumn("PBV", format="%.2fx"),
+                        "PER": st.column_config.NumberColumn("PER", format="%.2fx"),
+                        "EPS": st.column_config.NumberColumn("EPS", format="%.2f"),
+                    },
+                    hide_index=True
+                )
+                st.write("") # Spacer antar tabel
         else:
-            st.error("Gagal mengambil data. Cek koneksi atau kode saham.")
+            st.error("Gagal mengambil data.")
