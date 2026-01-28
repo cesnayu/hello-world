@@ -195,6 +195,32 @@ def get_seasonal_cycle(tickers_str, start_month, end_month, lookback_years=5):
             continue
             
     return result_traces
+@st.cache_data(ttl=300)
+def get_single_stock_detail(ticker, period):
+    """
+    Untuk Single Stock Analysis (1 Saham, Periode Fleksibel).
+    Mengambil data OHLCV lengkap.
+    """
+    if not ticker: return None
+    
+    # Download data
+    df = yf.download(ticker, period=period, progress=False)
+    
+    if df.empty: return None
+    
+    # Reset index agar Date jadi kolom
+    df = df.reset_index()
+    
+    # Flatten MultiIndex columns jika ada (karena yfinance sering berubah struktur)
+    if isinstance(df.columns, pd.MultiIndex):
+        try:
+            # Ambil level kolom yang relevan saja 
+            # (misal: ('Close', 'BBCA.JK') menjadi 'Close')
+            df.columns = [col[0] if col[1] == '' else col[0] for col in df.columns]
+        except:
+            pass
+            
+    return df
 
 # --- 5. FUNGSI VISUALISASI GRID (DIGUNAKAN DI TAB 1 & 4) ---
 def create_stock_grid(tickers, chart_data):
