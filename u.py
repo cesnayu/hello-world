@@ -227,7 +227,7 @@ st.title("📈 Super Stock Dashboard")
 default_tickers = ["BBCA.JK", "BBRI.JK", "BMRI.JK", "ASII.JK", "TLKM.JK", "UNVR.JK", "ADRO.JK", "ICBP.JK"] * 4 
 
 # TABS LENGKAP 1-6
-tab_grid, tab_vol, tab_sector, tab_watch, tab_detail, tab_cycle = st.tabs([
+tab_grid, tab_vol, tab_sector, tab_watch, tab_detail = st.tabs([
     "📊 Grid View", "🔊 Top Volume", "🏢 Sector Gain", "⭐ Watchlist", "🔎 Analisa Detail", "🔄 Feature Cycle"
 ])
 
