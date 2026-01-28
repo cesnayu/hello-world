@@ -16,7 +16,6 @@ def get_performance_matrix(raw_input):
     if not raw_input: return pd.DataFrame()
 
     # --- A. PEMBERSIHAN INPUT ---
-    # Mengubah enter/spasi menjadi koma, lalu split
     clean_input = raw_input.replace('\n', ',').replace(' ', ',')
     tickers = []
     
@@ -28,14 +27,12 @@ def get_performance_matrix(raw_input):
                 item += ".JK"
             tickers.append(item)
     
-    # Hapus duplikat
     tickers = list(set(tickers))
     
     if not tickers: return pd.DataFrame()
 
     # --- B. DOWNLOAD DATA ---
     try:
-        # Ambil data 5 tahun untuk cover perhitungan 3Y + hari libur
         data = yf.download(tickers, period="5y", group_by='ticker', progress=False)
     except Exception as e:
         return pd.DataFrame()
@@ -45,12 +42,11 @@ def get_performance_matrix(raw_input):
     # --- C. LOOP PER SAHAM ---
     for t in tickers:
         try:
-            # Handle struktur data yfinance (Single vs Multi Ticker)
             if len(tickers) == 1:
                 df = data
                 symbol = tickers[0]
             else:
-                # Cek apakah ticker ada di data yang didownload
+                # Cek MultiIndex
                 if isinstance(data.columns, pd.MultiIndex):
                      if t not in data.columns.levels[0]: continue
                 df = data[t]
@@ -58,31 +54,23 @@ def get_performance_matrix(raw_input):
 
             if df.empty: continue
 
-            # Flatten kolom jika MultiIndex (kadang terjadi di yfinance terbaru)
             if isinstance(df.columns, pd.MultiIndex): 
                 df.columns = df.columns.get_level_values(0)
             
-            # Hapus kolom duplikat & urutkan tanggal
             df = df.loc[:, ~df.columns.duplicated()]
             df = df.sort_index()
 
-            # Butuh minimal data 2 hari untuk hitung change
             if len(df) < 2: continue
 
-            # Ambil harga terakhir
             curr_price = float(df['Close'].iloc[-1])
 
-            # Fungsi helper hitung % change
-            # Return angka FLOAT (bukan string) agar bisa di-sort
             def calc_change(days):
                 if len(df) > days:
-                    # iloc[-(days+1)] adalah harga 'days' hari yang lalu
                     prev = float(df['Close'].iloc[-(days + 1)])
                     if prev == 0: return 0.0
-                    return ((curr_price - prev) / prev) # Hasil desimal (0.1 = 10%)
-                return None # Return None jika history tidak cukup (misal baru IPO)
+                    return ((curr_price - prev) / prev) 
+                return None 
 
-            # Hitung YTD (Year to Date)
             current_year = df.index[-1].year
             last_year_data = df[df.index.year < current_year]
             
@@ -90,9 +78,8 @@ def get_performance_matrix(raw_input):
                 last_year_close = float(last_year_data['Close'].iloc[-1])
                 ytd_change = (curr_price - last_year_close) / last_year_close
             else:
-                ytd_change = None # Saham baru IPO tahun ini
+                ytd_change = None 
 
-            # Masukkan ke list
             results.append({
                 "Ticker": symbol,
                 "Harga": curr_price,
@@ -141,11 +128,10 @@ with col2:
             if not df_result.empty:
                 st.write(f"### 📊 Hasil Analisa ({len(df_result)} Saham)")
                 
-                # Konfigurasi Kolom untuk Tampilan
-                # NumberColumn format="%.2f%%" membuat angka 0.1 tampil jadi 10.00%
-                # Tapi data aslinya tetap 0.1, jadi sorting tetap benar.
+                # --- PERBAIKAN DI SINI ---
+                # frozen=True DIHAPUS karena bikin error di TextColumn
                 column_settings = {
-                    "Ticker": st.column_config.TextColumn("Kode Saham", frozen=True),
+                    "Ticker": st.column_config.TextColumn("Kode Saham"), 
                     "Harga": st.column_config.NumberColumn("Harga Terakhir", format="Rp %.0f"),
                     "1 Hari": st.column_config.NumberColumn("1 Hari", format="%.2f%%"),
                     "1 Minggu": st.column_config.NumberColumn("1 Minggu", format="%.2f%%"),
@@ -164,7 +150,7 @@ with col2:
                     height=500
                 )
                 
-                st.caption("*Catatan: Kolom kosong (None) berarti saham belum listing pada periode tersebut (misal belum ada data 3 tahun).*")
+                st.caption("*Catatan: Kolom kosong (None) berarti saham belum listing pada periode tersebut.*")
                 
             else:
                 st.error("Data tidak ditemukan. Pastikan koneksi internet lancar atau kode saham benar.")
