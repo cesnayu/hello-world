@@ -336,36 +336,3 @@ with tab_detail:
                 c4.metric("High", f"{df_detail['High'].max():,.0f}")
             else: st.error("Data tidak ditemukan.")
 
-# === TAB 6: FEATURE CYCLE (SEASONALITY) ===
-with tab_cycle:
-    st.header("🔄 Feature Cycle Analysis")
-    st.write("Analisa pola musiman (Seasonality) dalam 5-10 tahun terakhir.")
-    
-    c1, c2, c3 = st.columns([2, 1, 1])
-    with c1:
-        def_t = ", ".join(st.session_state.watchlist[:3]) if st.session_state.watchlist else "BBCA.JK, ASII.JK"
-        cycle_tickers = st.text_input("Saham (Pisahkan koma):", value=def_t, key="cycle_in").strip().upper()
-    with c2:
-        month_map = {1:"Jan", 2:"Feb", 3:"Mar", 4:"Apr", 5:"Mei", 6:"Jun", 7:"Jul", 8:"Agust", 9:"Sep", 10:"Okt", 11:"Nov", 12:"Des"}
-        start_m = st.selectbox("Dari Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=10) # Default Nov
-        end_m = st.selectbox("Sampai Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=4) # Default Mei
-    with c3:
-        years_lookback = st.slider("Rata-rata brp tahun?", 3, 10, 5)
-        st.write("")
-        btn_cycle = st.button("🚀 Update Feature")
-
-    st.divider()
-    if btn_cycle and cycle_tickers:
-        with st.spinner(f"Menganalisa siklus..."):
-            cycle_data = get_seasonal_cycle(cycle_tickers, start_m, end_m, years_lookback)
-            if cycle_data:
-                fig_cycle = go.Figure()
-                for item in cycle_data:
-                    ticker = item['Ticker']
-                    series = item['Data']
-                    days_x = list(range(1, len(series) + 1))
-                    fig_cycle.add_trace(go.Scatter(x=days_x, y=series, mode='lines', name=f"{ticker} (Avg)", hovertemplate=f"<b>{ticker}</b><br>Hari ke-%{{x}}<br>Gain Avg: %{{y:.2f}}%<extra></extra>"))
-                fig_cycle.add_hline(y=0, line_dash="dash", line_color="gray")
-                fig_cycle.update_layout(title=f"Rata-rata Kinerja Musiman ({years_lookback} Tahun Terakhir)", xaxis_title="Durasi Hari", yaxis_title="Gain/Loss (%)", hovermode="x unified", height=500)
-                st.plotly_chart(fig_cycle, use_container_width=True)
-            else: st.warning("Data tidak cukup.")
