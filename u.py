@@ -106,6 +106,96 @@ def get_sector_performance(sector_name):
             continue
     return pd.DataFrame(perf_list)
 
+# --- FUNGSI BARU: SEASONAL CYCLE ANALYSIS ---
+@st.cache_data(ttl=600)
+def get_seasonal_cycle(tickers_str, start_month, end_month, lookback_years=5):
+    """
+    Menghitung rata-rata kinerja saham pada range bulan tertentu selama N tahun terakhir.
+    Contoh: Rata-rata kinerja BBRI dari November s/d Mei selama 5 tahun terakhir.
+    """
+    if not tickers_str: return None
+    ticker_list = [t.strip().upper() for t in tickers_str.split(',') if t.strip()]
+    
+    # Kita ambil data buffer lebih panjang biar aman
+    # Misal user minta 5 tahun, kita tarik 6 tahun untuk handle cross-year (Nov-Feb)
+    start_date = datetime.now() - timedelta(days=(lookback_years + 1) * 365)
+    data = yf.download(ticker_list, start=start_date, group_by='ticker', progress=False)
+    
+    result_traces = []
+
+    for ticker in ticker_list:
+        try:
+            # Handle struktur data yfinance
+            if len(ticker_list) == 1:
+                df = data
+                symbol = ticker_list[0]
+            else:
+                df = data[ticker]
+                symbol = ticker
+            
+            if df.empty: continue
+            
+            # Reset index biar Date jadi kolom
+            df = df.reset_index()
+            df['Date'] = pd.to_datetime(df['Date'])
+            
+            # List untuk menampung pergerakan tiap tahun
+            yearly_movements = []
+            
+            current_year = datetime.now().year
+            
+            # Loop mundur ke belakang sesuai lookback_years
+            for i in range(1, lookback_years + 1):
+                y_end = current_year - i
+                y_start = y_end if start_month < end_month else y_end - 1
+                
+                # Buat tanggal cutoff
+                # Kita pakai hari '1' sebagai patokan awal bulan, nanti difilter range
+                # Logika: Jika Nov (11) ke Mei (5). Tahun start 2020, Tahun end 2021.
+                
+                # Filter data berdasarkan bulan
+                # Cara paling robust: Ambil semua data, filter yang bulannya masuk range
+                # Tapi urutannya harus benar (Nov -> Des -> Jan -> Feb -> Mar -> Apr -> Mei)
+                
+                # Logika Sederhana: Ambil slice tanggal spesifik
+                # Asumsi tanggal 1, nanti user bisa custom jika mau lebih detail
+                try:
+                    d_start = datetime(y_start, int(start_month), 1)
+                    # Handle end date: Ambil tanggal 28 biar aman tiap bulan ada
+                    d_end = datetime(y_end, int(end_month), 28) 
+                except:
+                    continue # Skip jika tanggal error
+                
+                mask = (df['Date'] >= d_start) & (df['Date'] <= d_end)
+                df_period = df.loc[mask].copy()
+                
+                if df_period.empty: continue
+                
+                # Normalize: Hari pertama = 0%
+                first_price = df_period['Close'].iloc[0]
+                df_period['Rel_Change'] = ((df_period['Close'] - first_price) / first_price) * 100
+                
+                # Reset index jadi 0, 1, 2... (Hari ke-n)
+                df_period = df_period.reset_index(drop=True)
+                yearly_movements.append(df_period['Rel_Change'])
+            
+            if not yearly_movements: continue
+            
+            # Rata-rata kan semua tahun (Average Seasonality)
+            # Kita concat jadi dataframe lebar, lalu mean per baris (per hari ke-n)
+            df_concat = pd.concat(yearly_movements, axis=1)
+            avg_trend = df_concat.mean(axis=1)
+            
+            result_traces.append({
+                "Ticker": symbol,
+                "Data": avg_trend # Series index 0,1,2... value %
+            })
+            
+        except Exception as e:
+            continue
+            
+    return result_traces
+
 # --- 5. FUNGSI VISUALISASI GRID (DIGUNAKAN DI TAB 1 & 4) ---
 def create_stock_grid(tickers, chart_data):
     if not tickers: return None
@@ -170,12 +260,9 @@ default_tickers = [
     # Tambah sampai 100 ticker
 ] 
 
-# UPDATE TABS: Tab 4 diganti Search & Watchlist
-tab_grid, tab_vol, tab_sector, tab_search = st.tabs([
-    "📊 Chart Grid", 
-    "🔊 Top Volume", 
-    "🏢 Sector Gain", 
-    "🔍 Search & Watchlist"
+# UPDATE baris tabs
+tab_grid, tab_vol, tab_sector, tab_watch, tab_detail, tab_cycle = st.tabs([
+    "📊 Grid View", "🔊 Top Volume", "🏢 Sector Gain", "⭐ Watchlist", "🔎 Analisa Detail", "🔄 Feature Cycle"
 ])
 
 # === TAB 1: CHART GRID (PAGINATION) ===
@@ -415,3 +502,73 @@ with tab_detail:
                 
             else:
                 st.error(f"Data tidak ditemukan untuk {detail_ticker}. Pastikan kode benar (tambah .JK untuk Indonesia).")
+# === TAB 6: FEATURE CYCLE (SEASONALITY) ===
+with tab_cycle:
+    st.header("🔄 Feature Cycle Analysis")
+    st.write("Analisa pola musiman: Bagaimana rata-rata kinerja saham pada rentang bulan tertentu dalam 5-10 tahun terakhir?")
+    
+    # 1. INPUT PARAMETER
+    c1, c2, c3 = st.columns([2, 1, 1])
+    
+    with c1:
+        # Default tickers ambil dari watchlist atau set manual
+        def_t = ", ".join(st.session_state.watchlist[:3]) if st.session_state.watchlist else "BBCA.JK, ASII.JK"
+        cycle_tickers = st.text_input("Saham (Pisahkan koma):", value=def_t, key="cycle_in").strip().upper()
+        
+    with c2:
+        # Pilihan Bulan Start - End
+        month_map = {1:"Jan", 2:"Feb", 3:"Mar", 4:"Apr", 5:"Mei", 6:"Jun", 
+                     7:"Jul", 8:"Agust", 9:"Sep", 10:"Okt", 11:"Nov", 12:"Des"}
+        
+        start_m = st.selectbox("Dari Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=10) # Default Nov
+        end_m = st.selectbox("Sampai Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=4) # Default Mei
+        
+    with c3:
+        years_lookback = st.slider("Rata-rata brp tahun?", 3, 10, 5)
+        st.write("")
+        btn_cycle = st.button("🚀 Update Feature")
+
+    st.divider()
+    
+    # 2. PROSES & CHART
+    if btn_cycle and cycle_tickers:
+        with st.spinner(f"Menganalisa siklus {month_map[start_m]} ke {month_map[end_m]} selama {years_lookback} tahun..."):
+            
+            cycle_data = get_seasonal_cycle(cycle_tickers, start_m, end_m, years_lookback)
+            
+            if cycle_data:
+                # Buat Chart Line
+                fig_cycle = go.Figure()
+                
+                for item in cycle_data:
+                    ticker = item['Ticker']
+                    series = item['Data']
+                    
+                    # Buat X-axis dummy (Hari ke-1, Hari ke-2...)
+                    days_x = list(range(1, len(series) + 1))
+                    
+                    fig_cycle.add_trace(go.Scatter(
+                        x=days_x, 
+                        y=series, 
+                        mode='lines', 
+                        name=f"{ticker} (Avg)",
+                        hovertemplate=f"<b>{ticker}</b><br>Hari ke-%{{x}}<br>Gain Avg: %{{y:.2f}}%<extra></extra>"
+                    ))
+                
+                # Tambah garis 0% biar jelas mana untung mana rugi
+                fig_cycle.add_hline(y=0, line_dash="dash", line_color="gray")
+                
+                fig_cycle.update_layout(
+                    title=f"Rata-rata Kinerja Musiman ({years_lookback} Tahun Terakhir)",
+                    xaxis_title="Durasi Hari (Sejak Awal Periode)",
+                    yaxis_title="Kumulatif Gain/Loss (%)",
+                    hovermode="x unified",
+                    height=500
+                )
+                
+                st.plotly_chart(fig_cycle, use_container_width=True)
+                
+                st.info(f"💡 **Cara Baca:** Grafik menunjukkan rata-rata return kumulatif. Jika garis {cycle_tickers.split(',')[0]} naik tinggi di hari ke-30, artinya secara historis saham ini cenderung naik 1 bulan setelah bulan {month_map[start_m]}.")
+            
+            else:
+                st.warning("Data tidak cukup atau kode saham salah.")
