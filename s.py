@@ -8,12 +8,12 @@ import math
 import json
 import os
 
-# --- 1. KONFIGURASI & DATABASE FILE ---
+# --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(layout="wide", page_title="Super Stock Dashboard")
 
 DB_FILE = "stock_database.json"
 
-# --- FUNGSI SIMPAN & LOAD DATABASE ---
+# --- 2. FUNGSI DATABASE ---
 def load_data():
     if os.path.exists(DB_FILE):
         try:
@@ -31,59 +31,107 @@ def save_data():
     with open(DB_FILE, "w") as f:
         json.dump(data, f)
 
-# --- 2. INISIALISASI SESSION STATE ---
+# --- 3. INISIALISASI SESSION ---
 saved_data = load_data()
-
 if 'watchlist' not in st.session_state:
     st.session_state.watchlist = saved_data["watchlist"] if (saved_data and "watchlist" in saved_data) else ["BBCA.JK", "GOTO.JK", "BBRI.JK"]
-
 if 'vol_watchlist' not in st.session_state:
     st.session_state.vol_watchlist = saved_data["vol_watchlist"] if (saved_data and "vol_watchlist" in saved_data) else ["GOTO.JK", "BBRI.JK", "BUMI.JK"]
 
-# --- 3. DATA MAPPING (SEKTOR) ---
+# --- 4. DATA MAPPING ---
 SECTOR_MAP = {
-    "Banking (Finance)": ["BBCA.JK", "BBRI.JK", "BMRI.JK", "BBNI.JK", "BRIS.JK", "BBTN.JK", "ARTO.JK"],
-    "Energy & Mining": ["ADRO.JK", "PTBA.JK", "ITMG.JK", "PGAS.JK", "MDKA.JK", "ANTM.JK", "INCO.JK", "BUMI.JK"],
-    "Telco & Tech": ["TLKM.JK", "ISAT.JK", "EXCL.JK", "GOTO.JK", "BUKA.JK", "EMTK.JK"],
-    "Consumer Goods": ["ICBP.JK", "INDF.JK", "UNVR.JK", "MYOR.JK", "GGRM.JK", "HMSP.JK", "KLBF.JK"],
-    "Infrastructure & Auto": ["ASII.JK", "JSMR.JK", "UNTR.JK", "SMGR.JK", "INTP.JK"]
+    "Banking": ["BBCA.JK", "BBRI.JK", "BMRI.JK", "BBNI.JK", "BRIS.JK", "ARTO.JK"],
+    "Energy": ["ADRO.JK", "PTBA.JK", "ITMG.JK", "PGAS.JK", "MDKA.JK", "ANTM.JK", "BUMI.JK"],
+    "Telco/Tech": ["TLKM.JK", "ISAT.JK", "EXCL.JK", "GOTO.JK", "BUKA.JK", "EMTK.JK"],
+    "Consumer": ["ICBP.JK", "INDF.JK", "UNVR.JK", "MYOR.JK", "KLBF.JK"],
+    "Auto": ["ASII.JK", "UNTR.JK", "SMGR.JK", "INTP.JK"]
 }
 
-# --- 4. FUNGSI LOGIKA (BACKEND) ---
+# --- 5. FUNGSI LOGIKA (BACKEND) ---
 
 @st.cache_data(ttl=600)
 def get_stock_history_bulk(tickers, period="3mo"):
-    """Untuk Grid View (Banyak Saham, Periode Pendek)"""
     if not tickers: return pd.DataFrame()
     data = yf.download(tickers, period=period, group_by='ticker', progress=False)
     return data
 
 @st.cache_data(ttl=300)
 def get_single_stock_detail(ticker, period):
-    """
-    BARU: Untuk Single Stock Analysis (1 Saham, Periode Fleksibel).
-    Mengambil data OHLCV lengkap.
-    """
     if not ticker: return None
-    # Download data
-    df = yf.download(ticker, period=period, progress=False)
+    try:
+        df = yf.download(ticker, period=period, progress=False)
+        if df.empty: return None
+        if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+        df = df.reset_index()
+        if 'Date' not in df.columns and 'Datetime' in df.columns: df = df.rename(columns={'Datetime': 'Date'})
+        return df
+    except: return None
+
+@st.cache_data(ttl=600)
+def get_seasonal_details(tickers_str, start_month, end_month, lookback_years=5):
+    """
+    REVISI: Mengembalikan data detail PER TAHUN, bukan rata-rata.
+    Output: Dictionary { Ticker: { "2020-2021": Series, "2021-2022": Series } }
+    """
+    if not tickers_str: return None
+    ticker_list = [t.strip().upper() for t in tickers_str.split(',') if t.strip()]
     
-    # Handling Struktur Data yfinance yang kadang beda untuk 1 ticker
-    if df.empty: return None
+    # Ambil data buffer
+    start_date = datetime.now() - timedelta(days=(lookback_years + 2) * 365)
+    data = yf.download(ticker_list, start=start_date, group_by='ticker', progress=False)
     
-    # Reset index agar Date jadi kolom
-    df = df.reset_index()
-    
-    # Flatten MultiIndex columns jika ada (terkadang yfinance mengembalikan Ticker sebagai header level)
-    if isinstance(df.columns, pd.MultiIndex):
-        # Ambil level kolom yang relevan saja (Open, High, Low, Close, Volume)
+    results = {} # Structure: { "BBCA": { "2020": [data], "2021": [data] } }
+
+    for ticker in ticker_list:
         try:
-            # Cara aman meratakan kolom: Price level saja
-            df.columns = [col[0] if col[1] == '' else col[0] for col in df.columns]
-        except:
-            pass
+            if len(ticker_list) == 1:
+                df = data
+                symbol = ticker_list[0]
+            else:
+                df = data[ticker]
+                symbol = ticker
             
-    return df
+            if df.empty: continue
+            if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+            df = df.reset_index()
+            if 'Date' not in df.columns and 'Datetime' in df.columns: df = df.rename(columns={'Datetime': 'Date'})
+            df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None)
+            
+            stock_years_data = {}
+            current_year = datetime.now().year
+            
+            # Loop per tahun (Year Over Year)
+            for i in range(1, lookback_years + 1):
+                y_end = current_year - i
+                # Jika start > end (misal Nov ke Jan), maka start year mundur 1 tahun
+                y_start = y_end if int(start_month) < int(end_month) else y_end - 1
+                
+                try:
+                    d_start = datetime(y_start, int(start_month), 1)
+                    # Handle end date (tanggal 28 aman)
+                    d_end = datetime(y_end, int(end_month), 28) 
+                    
+                    label = f"{y_start}/{y_end}" if int(start_month) > int(end_month) else f"{y_end}"
+                except: continue
+                
+                mask = (df['Date'] >= d_start) & (df['Date'] <= d_end)
+                df_period = df.loc[mask].copy()
+                
+                if df_period.empty: continue
+                
+                # Normalisasi ke Persentase (Start from 0%)
+                first_price = df_period['Close'].iloc[0]
+                df_period['Rel_Change'] = ((df_period['Close'] - first_price) / first_price) * 100
+                
+                # Simpan Series (Reset index agar x-axis jadi 0,1,2,3...)
+                stock_years_data[label] = df_period['Rel_Change'].reset_index(drop=True)
+            
+            if stock_years_data:
+                results[symbol] = stock_years_data
+                
+        except Exception: continue
+        
+    return results
 
 @st.cache_data(ttl=300)
 def get_stock_volume_stats(tickers_str):
@@ -94,18 +142,17 @@ def get_stock_volume_stats(tickers_str):
     stats = []
     for t in ticker_list:
         try:
-            if len(ticker_list) == 1:
-                df = data
-                symbol = ticker_list[0]
-            else:
-                df = data[t]
-                symbol = t
+            if len(ticker_list) == 1: df = data; symbol = ticker_list[0]
+            else: df = data[t]; symbol = t
             if df.empty: continue
-            last_vol = df['Volume'].iloc[-1]
-            last_close = df['Close'].iloc[-1]
-            avg_vol_1w = df['Volume'].tail(5).mean()
-            txn_value = last_close * last_vol 
-            stats.append({"Ticker": symbol, "Last Close": last_close, "Volume (Hari Ini)": last_vol, "Avg Volume (1 Week)": avg_vol_1w, "Est. Value (IDR)": txn_value})
+            if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+            stats.append({
+                "Ticker": symbol, 
+                "Last Close": df['Close'].iloc[-1], 
+                "Volume": df['Volume'].iloc[-1], 
+                "Avg Vol": df['Volume'].tail(5).mean(), 
+                "Est. Val": df['Close'].iloc[-1] * df['Volume'].iloc[-1]
+            })
         except: continue
     return pd.DataFrame(stats)
 
@@ -119,25 +166,23 @@ def get_sector_performance(sector_name):
         try:
             df = data[t] if len(tickers) > 1 else data
             if df.empty: continue
+            if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
             df = df.sort_index()
             curr = df['Close'].iloc[-1]
-            def calc_pct(days_ago):
-                if len(df) > days_ago:
-                    prev = df['Close'].iloc[-(days_ago+1)]
-                    return ((curr - prev) / prev) * 100
+            def calc_pct(d):
+                if len(df) > d: return ((curr - df['Close'].iloc[-(d+1)]) / df['Close'].iloc[-(d+1)]) * 100
                 return 0.0
             perf_list.append({"Ticker": t, "Price": curr, "1D %": calc_pct(1), "1W %": calc_pct(5), "1M %": calc_pct(20)})
         except: continue
     return pd.DataFrame(perf_list)
 
-# --- VISUALISASI ---
+# --- 6. VISUALISASI CHART ---
 def create_stock_grid(tickers, chart_data):
     if not tickers: return None
     rows = math.ceil(len(tickers) / 4)
     vertical_spacing = min(0.08, 0.2 / (rows - 1)) if rows > 1 else 0.1
     fig = make_subplots(rows=rows, cols=4, subplot_titles=tickers, vertical_spacing=vertical_spacing, horizontal_spacing=0.03)
     one_month_ago = datetime.now() - timedelta(days=30)
-
     for i, ticker in enumerate(tickers):
         row, col = (i // 4) + 1, (i % 4) + 1
         try: df = chart_data[ticker] if len(tickers) > 1 else chart_data
@@ -145,11 +190,9 @@ def create_stock_grid(tickers, chart_data):
         if df.empty or 'Close' not in df.columns: continue
         df = df.dropna()
         if len(df) < 2: continue
-        
         last_p = df['Close'].iloc[-1]
         prev_p = df['Close'].iloc[-2]
         color = '#00C805' if float(last_p) >= float(prev_p) else '#FF333A'
-        
         fig.add_trace(go.Scatter(x=df.index, y=df['Close'], mode='lines', line=dict(color=color, width=1.5), name=ticker), row=row, col=col)
         fig.add_vline(x=one_month_ago.timestamp() * 1000, line_width=1, line_dash="dot", line_color="blue", row=row, col=col)
         fig.update_xaxes(showticklabels=False, row=row, col=col)
@@ -158,136 +201,20 @@ def create_stock_grid(tickers, chart_data):
     return fig
 
 def create_detail_chart(df, ticker):
-    """Membuat Candlestick Chart dengan Volume"""
-    # Create subplots: Row 1 = Price, Row 2 = Volume
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
-                        vertical_spacing=0.05, row_heights=[0.7, 0.3])
-
-    # 1. Candlestick
-    fig.add_trace(go.Candlestick(
-        x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
-        name="Price", showlegend=False
-    ), row=1, col=1)
-
-    # 2. Moving Averages (Optional - biar lebih keren)
-    if len(df) > 20:
-        ma20 = df['Close'].rolling(window=20).mean()
-        fig.add_trace(go.Scatter(x=df['Date'], y=ma20, line=dict(color='orange', width=1), name="MA 20"), row=1, col=1)
-
-    # 3. Volume Bar
-    # Warna volume mengikuti candle (Hijau kalau close > open, Merah kalau close < open)
-    colors = ['#00C805' if row['Close'] >= row['Open'] else '#FF333A' for index, row in df.iterrows()]
-    fig.add_trace(go.Bar(
-        x=df['Date'], y=df['Volume'], marker_color=colors, name="Volume", showlegend=False
-    ), row=2, col=1)
-
-    # Layout styling
-    fig.update_layout(
-        title=f"Analisa Teknikal: {ticker}",
-        yaxis_title="Harga",
-        xaxis_rangeslider_visible=False, # Matikan range slider bawah default plotly biar rapi
-        hovermode="x unified",
-        height=600
-    )
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
+    fig.add_trace(go.Candlestick(x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price", showlegend=False), row=1, col=1)
+    if len(df) > 20: fig.add_trace(go.Scatter(x=df['Date'], y=df['Close'].rolling(20).mean(), line=dict(color='orange', width=1), name="MA 20"), row=1, col=1)
+    colors = ['#00C805' if c >= o else '#FF333A' for c, o in zip(df['Close'], df['Open'])]
+    fig.add_trace(go.Bar(x=df['Date'], y=df['Volume'], marker_color=colors, name="Volume", showlegend=False), row=2, col=1)
+    fig.update_layout(title=f"Analisa Teknikal: {ticker}", yaxis_title="Harga", xaxis_rangeslider_visible=False, hovermode="x unified", height=600)
     return fig
-# --- FUNGSI BARU: SEASONAL CYCLE ANALYSIS ---
-@st.cache_data(ttl=600)
-def get_seasonal_cycle(tickers_str, start_month, end_month, lookback_years=5):
-    """
-    Menghitung rata-rata kinerja saham pada range bulan tertentu selama N tahun terakhir.
-    Contoh: Rata-rata kinerja BBRI dari November s/d Mei selama 5 tahun terakhir.
-    """
-    if not tickers_str: return None
-    ticker_list = [t.strip().upper() for t in tickers_str.split(',') if t.strip()]
-    
-    # Kita ambil data buffer lebih panjang biar aman
-    # Misal user minta 5 tahun, kita tarik 6 tahun untuk handle cross-year (Nov-Feb)
-    start_date = datetime.now() - timedelta(days=(lookback_years + 1) * 365)
-    data = yf.download(ticker_list, start=start_date, group_by='ticker', progress=False)
-    
-    result_traces = []
 
-    for ticker in ticker_list:
-        try:
-            # Handle struktur data yfinance
-            if len(ticker_list) == 1:
-                df = data
-                symbol = ticker_list[0]
-            else:
-                df = data[ticker]
-                symbol = ticker
-            
-            if df.empty: continue
-            
-            # Reset index biar Date jadi kolom
-            df = df.reset_index()
-            df['Date'] = pd.to_datetime(df['Date'])
-            
-            # List untuk menampung pergerakan tiap tahun
-            yearly_movements = []
-            
-            current_year = datetime.now().year
-            
-            # Loop mundur ke belakang sesuai lookback_years
-            for i in range(1, lookback_years + 1):
-                y_end = current_year - i
-                y_start = y_end if start_month < end_month else y_end - 1
-                
-                # Buat tanggal cutoff
-                # Kita pakai hari '1' sebagai patokan awal bulan, nanti difilter range
-                # Logika: Jika Nov (11) ke Mei (5). Tahun start 2020, Tahun end 2021.
-                
-                # Filter data berdasarkan bulan
-                # Cara paling robust: Ambil semua data, filter yang bulannya masuk range
-                # Tapi urutannya harus benar (Nov -> Des -> Jan -> Feb -> Mar -> Apr -> Mei)
-                
-                # Logika Sederhana: Ambil slice tanggal spesifik
-                # Asumsi tanggal 1, nanti user bisa custom jika mau lebih detail
-                try:
-                    d_start = datetime(y_start, int(start_month), 1)
-                    # Handle end date: Ambil tanggal 28 biar aman tiap bulan ada
-                    d_end = datetime(y_end, int(end_month), 28) 
-                except:
-                    continue # Skip jika tanggal error
-                
-                mask = (df['Date'] >= d_start) & (df['Date'] <= d_end)
-                df_period = df.loc[mask].copy()
-                
-                if df_period.empty: continue
-                
-                # Normalize: Hari pertama = 0%
-                first_price = df_period['Close'].iloc[0]
-                df_period['Rel_Change'] = ((df_period['Close'] - first_price) / first_price) * 100
-                
-                # Reset index jadi 0, 1, 2... (Hari ke-n)
-                df_period = df_period.reset_index(drop=True)
-                yearly_movements.append(df_period['Rel_Change'])
-            
-            if not yearly_movements: continue
-            
-            # Rata-rata kan semua tahun (Average Seasonality)
-            # Kita concat jadi dataframe lebar, lalu mean per baris (per hari ke-n)
-            df_concat = pd.concat(yearly_movements, axis=1)
-            avg_trend = df_concat.mean(axis=1)
-            
-            result_traces.append({
-                "Ticker": symbol,
-                "Data": avg_trend # Series index 0,1,2... value %
-            })
-            
-        except Exception as e:
-            continue
-            
-    return result_traces
-
-# --- 5. MAIN UI ---
+# --- 7. MAIN UI ---
 st.title("📈 Super Stock Dashboard")
-
 default_tickers = ["BBCA.JK", "BBRI.JK", "BMRI.JK", "ASII.JK", "TLKM.JK", "UNVR.JK", "ADRO.JK", "ICBP.JK"] * 4 
 
-# UPDATE: Tambah Tab ke-5 "Analisa Detail"
 tab_grid, tab_vol, tab_sector, tab_watch, tab_detail, tab_cycle = st.tabs([
-    "📊 Grid View", "🔊 Top Volume", "🏢 Sector Gain", "⭐ Watchlist", "🔎 Analisa Detail", "fc"
+    "📊 Grid View", "🔊 Top Volume", "🏢 Sector Gain", "⭐ Watchlist", "🔎 Analisa Detail", "🔄 Feature Cycle"
 ])
 
 # === TAB 1: GRID ===
@@ -299,12 +226,11 @@ with tab_grid:
     curr_page = c1.number_input("Halaman", 1, math.ceil(len(default_tickers)/items_per_page), key="grid_page")
     start, end = (curr_page - 1) * items_per_page, (curr_page - 1) * items_per_page + items_per_page
     batch = default_tickers[start:end]
-
     with st.spinner("Memuat grafik..."):
         data_grid = get_stock_history_bulk(batch)
         if not data_grid.empty:
-            fig_main = create_stock_grid(batch, data_grid)
-            st.plotly_chart(fig_main, use_container_width=True)
+            fig = create_stock_grid(batch, data_grid)
+            st.plotly_chart(fig, use_container_width=True)
 
 # === TAB 2: VOLUME ===
 with tab_vol:
@@ -315,21 +241,18 @@ with tab_vol:
     with c_add: 
         st.write(""); st.write("") 
         if st.button("➕", key="b_av"): 
-            if n_vol and n_vol not in st.session_state.vol_watchlist: 
-                st.session_state.vol_watchlist.append(n_vol); save_data(); st.rerun()
+            if n_vol and n_vol not in st.session_state.vol_watchlist: st.session_state.vol_watchlist.append(n_vol); save_data(); st.rerun()
     with c_rst:
         st.write(""); st.write("")
         if st.button("🔄", key="b_rv"): st.session_state.vol_watchlist = DEFAULT_VOL; save_data(); st.rerun()
-
     ed_vol = st.multiselect("List:", options=st.session_state.vol_watchlist, default=st.session_state.vol_watchlist, key="ms_v", label_visibility="collapsed")
     if len(ed_vol) != len(st.session_state.vol_watchlist): st.session_state.vol_watchlist = ed_vol; save_data(); st.rerun()
-    
     if st.session_state.vol_watchlist:
         with st.spinner("Load..."):
             df_v = get_stock_volume_stats(",".join(st.session_state.vol_watchlist))
             if df_v is not None and not df_v.empty:
-                sc = st.radio("Urutkan:", ["Volume (Hari Ini)", "Avg Volume (1 Week)", "Est. Value (IDR)"], horizontal=True)
-                st.dataframe(df_v.sort_values(by=sc, ascending=False).style.format({"Last Close": "{:,.0f}", "Volume (Hari Ini)": "{:,.0f}", "Avg Volume (1 Week)": "{:,.0f}", "Est. Value (IDR)": "Rp {:,.0f}"}), use_container_width=True)
+                sc = st.radio("Urutkan:", ["Volume", "Avg Vol", "Est. Val"], horizontal=True)
+                st.dataframe(df_v.sort_values(by=sc, ascending=False).style.format({"Last Close": "{:,.0f}", "Volume": "{:,.0f}", "Avg Vol": "{:,.0f}", "Est. Val": "Rp {:,.0f}"}), use_container_width=True)
 
 # === TAB 3: SECTOR ===
 with tab_sector:
@@ -337,8 +260,7 @@ with tab_sector:
     if sec:
         with st.spinner("Load..."):
             df_s = get_sector_performance(sec)
-            if not df_s.empty:
-                st.dataframe(df_s.style.applymap(lambda v: f'background-color: {"#d4f7d4" if v>0 else "#f7d4d4" if v<0 else ""}', subset=['1D %', '1W %', '1M %']).format({"Price": "{:,.0f}", "1D %": "{:+.2f}%", "1W %": "{:+.2f}%", "1M %": "{:+.2f}%"}), use_container_width=True)
+            if not df_s.empty: st.dataframe(df_s.style.applymap(lambda v: f'background-color: {"#d4f7d4" if v>0 else "#f7d4d4" if v<0 else ""}', subset=['1D %', '1W %', '1M %']).format({"Price": "{:,.0f}", "1D %": "{:+.2f}%", "1W %": "{:+.2f}%", "1M %": "{:+.2f}%"}), use_container_width=True)
 
 # === TAB 4: WATCHLIST ===
 with tab_watch:
@@ -349,7 +271,6 @@ with tab_watch:
         st.write(""); st.write("")
         if st.button("➕ Tambah"): 
             if nt and nt not in st.session_state.watchlist: st.session_state.watchlist.append(nt); save_data(); st.rerun()
-    
     cw = st.session_state.watchlist
     if cw:
         if st.button("🗑️ Hapus Semua"): st.session_state.watchlist = []; save_data(); st.rerun()
@@ -361,127 +282,85 @@ with tab_watch:
                 fw = create_stock_grid(cw, dw)
                 if fw: st.plotly_chart(fw, use_container_width=True)
 
-# === TAB 5: ANALISA DETAIL (NEW FEATURE) ===
+# === TAB 5: DETAIL ===
 with tab_detail:
     st.header("🔎 Analisa Saham Mendalam")
-    st.write("Lihat grafik lengkap dengan candlestick, volume, dan rentang waktu bebas.")
-    
-    # 1. Kontrol Input (Ticker & Timeframe)
     col_search, col_period = st.columns([2, 3])
-    
     with col_search:
-        # Default value ambil dari watchlist pertama kalau ada
         default_ticker = st.session_state.watchlist[0] if st.session_state.watchlist else "BBCA.JK"
         detail_ticker = st.text_input("Ketik Kode Saham:", value=default_ticker, key="detail_input").strip().upper()
-        
     with col_period:
-        # Pilihan Rentang Waktu
         period_options = ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"]
-        # Label yang lebih manusiawi
-        period_labels = {"1mo": "1 Bulan", "3mo": "3 Bulan", "6mo": "6 Bulan", "1y": "1 Tahun", "2y": "2 Tahun", "5y": "5 Tahun", "max": "Sejak IPO"}
-        
-        selected_period_code = st.select_slider(
-            "Pilih Rentang Waktu:",
-            options=period_options,
-            value="1y", # Default 1 tahun
-            format_func=lambda x: period_labels[x]
-        )
-
+        selected_period_code = st.select_slider("Pilih Rentang Waktu:", options=period_options, value="1y")
     st.divider()
-
-    # 2. Render Chart
     if detail_ticker:
-        with st.spinner(f"Mengambil data {detail_ticker} ({period_labels[selected_period_code]})..."):
-            
-            # Panggil fungsi baru get_single_stock_detail
+        with st.spinner(f"Mengambil data {detail_ticker}..."):
             df_detail = get_single_stock_detail(detail_ticker, selected_period_code)
-            
             if df_detail is not None and not df_detail.empty:
-                # Tampilkan Chart Candlestick
-                fig_detail = create_detail_chart(df_detail, detail_ticker)
-                st.plotly_chart(fig_detail, use_container_width=True)
-                
-                # Tampilkan Data Statistik Singkat
-                last_row = df_detail.iloc[-1]
-                prev_row = df_detail.iloc[-2] if len(df_detail) > 1 else last_row
-                change = last_row['Close'] - prev_row['Close']
-                pct_change = (change / prev_row['Close']) * 100
-                
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Harga Terakhir", f"{last_row['Close']:,.0f}")
-                col2.metric("Perubahan", f"{change:,.0f}", f"{pct_change:.2f}%")
-                col3.metric("Volume", f"{last_row['Volume']:,.0f}")
-                col4.metric("Tertinggi (Periode Ini)", f"{df_detail['High'].max():,.0f}")
-                
-            else:
-                st.error(f"Data tidak ditemukan untuk {detail_ticker}. Pastikan kode benar (tambah .JK untuk Indonesia).")
-# === TAB 6: FEATURE CYCLE (SEASONALITY) ===
+                st.plotly_chart(create_detail_chart(df_detail, detail_ticker), use_container_width=True)
+                last = df_detail.iloc[-1]; prev = df_detail.iloc[-2]
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Harga", f"{last['Close']:,.0f}")
+                c2.metric("Change", f"{last['Close']-prev['Close']:,.0f}", f"{(last['Close']-prev['Close'])/prev['Close']*100:.2f}%")
+                c3.metric("Volume", f"{last['Volume']:,.0f}")
+                c4.metric("High", f"{df_detail['High'].max():,.0f}")
+            else: st.error("Data tidak ditemukan.")
+
+# === TAB 6: FEATURE CYCLE (REVISI - MULTI YEAR LINES) ===
 with tab_cycle:
-    st.header("🔄 Feature Cycle Analysis")
-    st.write("Analisa pola musiman: Bagaimana rata-rata kinerja saham pada rentang bulan tertentu dalam 5-10 tahun terakhir?")
+    st.header("🔄 Cycle Analysis (Year over Year)")
+    st.write("Membandingkan pergerakan harga saham pada bulan yang sama di tahun-tahun berbeda.")
     
-    # 1. INPUT PARAMETER
+    # Input
     c1, c2, c3 = st.columns([2, 1, 1])
-    
     with c1:
-        # Default tickers ambil dari watchlist atau set manual
-        def_t = ", ".join(st.session_state.watchlist[:3]) if st.session_state.watchlist else "BBCA.JK, ASII.JK"
+        def_t = ", ".join(st.session_state.watchlist[:2]) if st.session_state.watchlist else "GOTO.JK, BBCA.JK"
         cycle_tickers = st.text_input("Saham (Pisahkan koma):", value=def_t, key="cycle_in").strip().upper()
-        
     with c2:
-        # Pilihan Bulan Start - End
-        month_map = {1:"Jan", 2:"Feb", 3:"Mar", 4:"Apr", 5:"Mei", 6:"Jun", 
-                     7:"Jul", 8:"Agust", 9:"Sep", 10:"Okt", 11:"Nov", 12:"Des"}
-        
-        start_m = st.selectbox("Dari Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=10) # Default Nov
-        end_m = st.selectbox("Sampai Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=4) # Default Mei
-        
+        month_map = {1:"Jan", 2:"Feb", 3:"Mar", 4:"Apr", 5:"Mei", 6:"Jun", 7:"Jul", 8:"Agust", 9:"Sep", 10:"Okt", 11:"Nov", 12:"Des"}
+        start_m = st.selectbox("Dari Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=10) # Nov
+        end_m = st.selectbox("Sampai Bulan:", options=list(month_map.keys()), format_func=lambda x: month_map[x], index=1) # Feb
     with c3:
-        years_lookback = st.slider("Rata-rata brp tahun?", 3, 10, 5)
+        years_lookback = st.slider("Tarik Data Berapa Tahun?", 3, 10, 5)
         st.write("")
-        btn_cycle = st.button("🚀 Update Feature")
+        btn_cycle = st.button("🚀 Bandingkan")
 
     st.divider()
     
-    # 2. PROSES & CHART
     if btn_cycle and cycle_tickers:
-        with st.spinner(f"Menganalisa siklus {month_map[start_m]} ke {month_map[end_m]} selama {years_lookback} tahun..."):
+        with st.spinner("Menganalisa..."):
+            # Panggil fungsi yang sudah diperbarui
+            results_dict = get_seasonal_details(cycle_tickers, start_m, end_m, years_lookback)
             
-            cycle_data = get_seasonal_cycle(cycle_tickers, start_m, end_m, years_lookback)
-            
-            if cycle_data:
-                # Buat Chart Line
-                fig_cycle = go.Figure()
+            if results_dict:
+                # Layout Grid untuk Chart (2 Kolom)
+                cols = st.columns(2)
                 
-                for item in cycle_data:
-                    ticker = item['Ticker']
-                    series = item['Data']
-                    
-                    # Buat X-axis dummy (Hari ke-1, Hari ke-2...)
-                    days_x = list(range(1, len(series) + 1))
-                    
-                    fig_cycle.add_trace(go.Scatter(
-                        x=days_x, 
-                        y=series, 
-                        mode='lines', 
-                        name=f"{ticker} (Avg)",
-                        hovertemplate=f"<b>{ticker}</b><br>Hari ke-%{{x}}<br>Gain Avg: %{{y:.2f}}%<extra></extra>"
-                    ))
-                
-                # Tambah garis 0% biar jelas mana untung mana rugi
-                fig_cycle.add_hline(y=0, line_dash="dash", line_color="gray")
-                
-                fig_cycle.update_layout(
-                    title=f"Rata-rata Kinerja Musiman ({years_lookback} Tahun Terakhir)",
-                    xaxis_title="Durasi Hari (Sejak Awal Periode)",
-                    yaxis_title="Kumulatif Gain/Loss (%)",
-                    hovermode="x unified",
-                    height=500
-                )
-                
-                st.plotly_chart(fig_cycle, use_container_width=True)
-                
-                st.info(f"💡 **Cara Baca:** Grafik menunjukkan rata-rata return kumulatif. Jika garis {cycle_tickers.split(',')[0]} naik tinggi di hari ke-30, artinya secara historis saham ini cenderung naik 1 bulan setelah bulan {month_map[start_m]}.")
-            
+                # Loop setiap saham -> Buat 1 Chart per Saham
+                for idx, (ticker, years_data) in enumerate(results_dict.items()):
+                    with cols[idx % 2]: # Selang seling kolom kiri/kanan
+                        fig = go.Figure()
+                        
+                        # Loop setiap tahun di saham tersebut -> Buat garis
+                        for year_label, series in years_data.items():
+                            fig.add_trace(go.Scatter(
+                                y=series,
+                                mode='lines',
+                                name=year_label, # Label Tahun (misal 2021/2022)
+                                hovertemplate=f"<b>{year_label}</b><br>Hari ke-%{{x}}<br>Return: %{{y:.2f}}%<extra></extra>"
+                            ))
+                        
+                        # Garis 0%
+                        fig.add_hline(y=0, line_dash="dash", line_color="white", opacity=0.5)
+                        
+                        fig.update_layout(
+                            title=f"<b>{ticker}</b>: {month_map[start_m]} - {month_map[end_m]}",
+                            xaxis_title="Hari ke-n",
+                            yaxis_title="Gain/Loss (%)",
+                            hovermode="x unified",
+                            height=400,
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
             else:
                 st.warning("Data tidak cukup atau kode saham salah.")
