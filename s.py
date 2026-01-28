@@ -55,17 +55,32 @@ def get_stock_history_bulk(tickers, period="3mo"):
     data = yf.download(tickers, period=period, group_by='ticker', progress=False)
     return data
 
+# --- PERBAIKAN DI SINI (ANTI DUPLICATE ERROR) ---
 @st.cache_data(ttl=300)
 def get_single_stock_detail(ticker, period):
     if not ticker: return None
     try:
         df = yf.download(ticker, period=period, progress=False)
         if df.empty: return None
-        if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+        
+        # 1. Flatten MultiIndex Columns jika ada
+        if isinstance(df.columns, pd.MultiIndex): 
+            df.columns = df.columns.get_level_values(0)
+            
+        # 2. HAPUS KOLOM DUPLIKAT (Ini solusi error Narwhals)
+        # Kita ambil semua kolom, tapi jika ada nama kembar, ambil yang pertama saja
+        df = df.loc[:, ~df.columns.duplicated()]
+
+        # 3. Reset Index
         df = df.reset_index()
-        if 'Date' not in df.columns and 'Datetime' in df.columns: df = df.rename(columns={'Datetime': 'Date'})
+        
+        # 4. Standardisasi Nama Kolom Date
+        if 'Date' not in df.columns and 'Datetime' in df.columns: 
+            df = df.rename(columns={'Datetime': 'Date'})
+            
         return df
     except: return None
+# ------------------------------------------------
 
 @st.cache_data(ttl=600)
 def get_seasonal_details(tickers_str, start_month, end_month, lookback_years=5):
@@ -75,7 +90,6 @@ def get_seasonal_details(tickers_str, start_month, end_month, lookback_years=5):
     if not tickers_str: return None
     ticker_list = [t.strip().upper() for t in tickers_str.split(',') if t.strip()]
     
-    # Ambil data buffer extra panjang
     start_date = datetime.now() - timedelta(days=(lookback_years + 2) * 365)
     data = yf.download(ticker_list, start=start_date, group_by='ticker', progress=False)
     
@@ -88,6 +102,10 @@ def get_seasonal_details(tickers_str, start_month, end_month, lookback_years=5):
             
             if df.empty: continue
             if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+            
+            # HAPUS DUPLIKAT JUGA DISINI BIAR AMAN
+            df = df.loc[:, ~df.columns.duplicated()]
+            
             df = df.reset_index()
             if 'Date' not in df.columns and 'Datetime' in df.columns: df = df.rename(columns={'Datetime': 'Date'})
             df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None)
@@ -95,42 +113,28 @@ def get_seasonal_details(tickers_str, start_month, end_month, lookback_years=5):
             stock_years_data = {}
             current_year = datetime.now().year
             
-            # === PERBAIKAN LOGIC DI SINI ===
-            # Loop dari 0 agar tahun ini (yang belum selesai) ikut terhitung
             for i in range(0, lookback_years + 1):
                 y_end = current_year - i
                 
                 # Logic Cross Year (Misal Nov ke Apr)
                 if int(start_month) > int(end_month):
-                    # Nov 2025 (start) -> Apr 2026 (end)
                     y_start = y_end - 1 
                 else:
-                    # Jun 2026 (start) -> Agust 2026 (end)
                     y_start = y_end
 
                 try:
                     d_start = datetime(y_start, int(start_month), 1)
-                    
-                    # Cek: Jika tanggal mulai cycle ini masih di masa depan, skip.
-                    # Contoh: Sekarang Jan 2026. User minta Juni-Agust.
-                    # Loop 0 akan cek Juni 2026. Ini belum terjadi -> Skip.
-                    if d_start > datetime.now():
-                        continue
+                    if d_start > datetime.now(): continue
 
-                    # Tanggal akhir (handle tanggal 28 agar aman di Feb)
                     d_end = datetime(y_end, int(end_month), 28) 
-                    
                     label = f"{y_start}/{y_end}" if int(start_month) > int(end_month) else f"{y_end}"
                 except: continue
                 
-                # Filter Data
-                # Walaupun d_end Apr 2026 (masa depan), pandas akan filter data yang ada saja (sampai Jan 2026)
                 mask = (df['Date'] >= d_start) & (df['Date'] <= d_end)
                 df_period = df.loc[mask].copy()
                 
                 if df_period.empty: continue
                 
-                # Normalisasi %
                 first_price = df_period['Close'].iloc[0]
                 df_period['Rel_Change'] = ((df_period['Close'] - first_price) / first_price) * 100
                 
@@ -156,6 +160,8 @@ def get_stock_volume_stats(tickers_str):
             else: df = data[t]; symbol = t
             if df.empty: continue
             if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+            df = df.loc[:, ~df.columns.duplicated()] # Safety
+
             stats.append({
                 "Ticker": symbol, 
                 "Last Close": df['Close'].iloc[-1], 
@@ -177,6 +183,8 @@ def get_sector_performance(sector_name):
             df = data[t] if len(tickers) > 1 else data
             if df.empty: continue
             if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+            df = df.loc[:, ~df.columns.duplicated()] # Safety
+            
             df = df.sort_index()
             curr = df['Close'].iloc[-1]
             def calc_pct(d):
@@ -316,7 +324,7 @@ with tab_detail:
                 c4.metric("High", f"{df_detail['High'].max():,.0f}")
             else: st.error("Data tidak ditemukan.")
 
-# === TAB 6: FEATURE CYCLE (REVISI - CURRENT YEAR FIX) ===
+# === TAB 6: FEATURE CYCLE (REVISI - WARNA CUSTOM & FIX YEAR) ===
 with tab_cycle:
     st.header("🔄 Cycle Analysis (Year over Year)")
     st.write("Membandingkan pergerakan harga saham pada bulan yang sama di tahun-tahun berbeda.")
@@ -339,47 +347,31 @@ with tab_cycle:
     
     if btn_cycle and cycle_tickers:
         with st.spinner("Menganalisa..."):
-            # Panggil fungsi yang sudah diperbarui
             results_dict = get_seasonal_details(cycle_tickers, start_m, end_m, years_lookback)
-            
             if results_dict:
                 cols = st.columns(2)
-                # ... (kode sebelumnya di dalam tab_cycle) ...
-                
-                # Loop setiap saham
                 for idx, (ticker, years_data) in enumerate(results_dict.items()):
                     with cols[idx % 2]:
                         fig = go.Figure()
-                        
                         sorted_years = sorted(years_data.keys(), reverse=True)
                         
-                        # --- DEFINISI WARNA: HITAM, BIRU, MERAH, HIJAU ---
-                        # Kamu bisa pakai nama warna Inggris atau Kode Hex
-                        # Urutan: Tahun Terbaru -> Hitam, Tahun sblmnya -> Biru, dst.
-                        my_colors = ['black', 'blue', 'red', 'green','yellow'] 
+                        # --- CUSTOM WARNA: HITAM, BIRU, MERAH, HIJAU ---
+                        my_colors = ['black', 'blue', 'red', 'green'] 
                         
                         for i, year_label in enumerate(sorted_years):
                             series = years_data[year_label]
-                            
-                            # Pilih warna secara bergantian (Cycle)
-                            # Jika tahun ke-5, dia akan kembali ke warna pertama (Hitam)
                             chosen_color = my_colors[i % len(my_colors)]
+                            is_current = str(datetime.now().year) in year_label
                             
-                            # Cek apakah ini tahun berjalan (Current Year)?
-                            is_current_year = str(datetime.now().year) in year_label
-                            
-                            # Opsional: Jika tahun ini, garis lebih tebal biar spesial
-                            line_width = 3 if is_current_year else 1.5
+                            # Logika Tebal Garis: Jika tahun ini, tebal 3, lainnya 1.5
+                            width = 3 if is_current else 1.5
                             
                             fig.add_trace(go.Scatter(
-                                y=series, 
-                                mode='lines', 
-                                name=year_label,
-                                line=dict(color=chosen_color, width=line_width), # <--- Pakai warna pilihan
+                                y=series, mode='lines', name=year_label,
+                                line=dict(width=width, color=chosen_color),
                                 hovertemplate=f"<b>{year_label}</b><br>Hari ke-%{{x}}<br>Return: %{{y:.2f}}%<extra></extra>"
                             ))
                         
-                        # ... (sisa kode layout fig.update_layout sama seperti sebelumnya) ...
                         fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
                         fig.update_layout(
                             title=f"<b>{ticker}</b>: {month_map[start_m]} - {month_map[end_m]}",
