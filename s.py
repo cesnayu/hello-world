@@ -1,7 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import plotly.graph_objects as go
-# from plotly.subplots import make_subplots # Tidak dipakai lagi karena kita pakai Grid Native Streamlit
+from plotly.subplots import make_subplots # <--- INI YG SEBELUMNYA HILANG, SUDAH SAYA AKTIFKAN KEMBALI
 import pandas as pd
 from datetime import datetime, timedelta
 import math
@@ -359,6 +359,7 @@ def create_mini_chart(df, ticker, period_code, show_ma=True):
     )
     return fig
 
+# FUNGSI UNTUK GRAFIK DETAIL (DENGAN MAKE_SUBPLOTS)
 def create_detail_chart(df, ticker, df_fin_filtered):
     fig = make_subplots(
         rows=3, cols=1, 
@@ -559,9 +560,6 @@ with tab_watch:
         with st.spinner("Load..."):
             dw = get_stock_history_bulk(cw)
             if not dw.empty: 
-                # Re-use create_mini_chart logic for watchlist grid? Or keep old layout
-                # Let's keep old layout for watchlist for now or reuse the new grid logic
-                # Using new grid logic for consistency:
                 w_cols = st.columns(4)
                 for i, ticker in enumerate(cw):
                     with w_cols[i % 4]:
