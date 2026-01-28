@@ -7,46 +7,42 @@ from datetime import datetime
 st.set_page_config(layout="wide", page_title="Stock Performance Matrix")
 
 # --- 2. FUNGSI LOGIKA (BACKEND) ---
-@st.cache_data(ttl=600) # Cache data 10 menit
+@st.cache_data(ttl=600) 
 def get_performance_matrix(raw_input):
-    """
-    Menerima input string mentah, membersihkan, download data 5 tahun,
-    dan menghitung performa (1D, 1W, 1M, YTD, 1Y, 3Y).
-    """
     if not raw_input: return pd.DataFrame()
 
-    # --- A. PEMBERSIHAN INPUT ---
+    # A. BERSIHKAN INPUT
     clean_input = raw_input.replace('\n', ',').replace(' ', ',')
     tickers = []
-    
     for t in clean_input.split(','):
         item = t.strip().upper()
         if item:
-            # Auto-fix: Jika 4 huruf alfabet (contoh: BBCA) tanpa titik, tambah .JK
+            # Auto-fix .JK
             if len(item) == 4 and item.isalpha():
                 item += ".JK"
             tickers.append(item)
     
     tickers = list(set(tickers))
-    
     if not tickers: return pd.DataFrame()
 
-    # --- B. DOWNLOAD DATA ---
+    # B. DOWNLOAD DATA (AUTO_ADJUST=FALSE AGAR HARGA SESUAI PASAR)
     try:
-        data = yf.download(tickers, period="5y", group_by='ticker', progress=False)
-    except Exception as e:
+        # PENTING: auto_adjust=False agar dapat harga MURNI (bukan adjusted dividend)
+        # Ini akan memperbaiki masalah persentase ADRO yang tidak sesuai
+        data = yf.download(tickers, period="5y", group_by='ticker', progress=False, auto_adjust=False)
+    except Exception:
         return pd.DataFrame()
 
     results = []
 
-    # --- C. LOOP PER SAHAM ---
+    # C. LOOP PER SAHAM
     for t in tickers:
         try:
+            # Ekstrak Data
             if len(tickers) == 1:
                 df = data
                 symbol = tickers[0]
             else:
-                # Cek MultiIndex
                 if isinstance(data.columns, pd.MultiIndex):
                      if t not in data.columns.levels[0]: continue
                 df = data[t]
@@ -54,16 +50,27 @@ def get_performance_matrix(raw_input):
 
             if df.empty: continue
 
+            # Bersihkan Kolom
             if isinstance(df.columns, pd.MultiIndex): 
                 df.columns = df.columns.get_level_values(0)
             
-            df = df.loc[:, ~df.columns.duplicated()]
+            # Kita paksa ambil kolom 'Close' (Harga Penutupan Asli)
+            # Kadang yfinance kasih 'Adj Close', kita hindari itu untuk kasus ini
+            if 'Close' in df.columns:
+                price_col = 'Close'
+            elif 'Adj Close' in df.columns:
+                price_col = 'Adj Close'
+            else:
+                continue
+
+            df = df[[price_col]].rename(columns={price_col: 'Close'})
             df = df.sort_index()
 
             if len(df) < 2: continue
 
             curr_price = float(df['Close'].iloc[-1])
 
+            # Helper Hitung %
             def calc_change(days):
                 if len(df) > days:
                     prev = float(df['Close'].iloc[-(days + 1)])
@@ -71,10 +78,13 @@ def get_performance_matrix(raw_input):
                     return ((curr_price - prev) / prev) 
                 return None 
 
+            # YTD Logic (Start of Year)
             current_year = df.index[-1].year
+            # Ambil data tahun lalu
             last_year_data = df[df.index.year < current_year]
             
             if not last_year_data.empty:
+                # Harga penutupan hari terakhir tahun lalu
                 last_year_close = float(last_year_data['Close'].iloc[-1])
                 ytd_change = (curr_price - last_year_close) / last_year_close
             else:
@@ -92,69 +102,69 @@ def get_performance_matrix(raw_input):
                 "3 Tahun": calc_change(756)
             })
 
-        except Exception as e:
+        except Exception:
             continue
 
     return pd.DataFrame(results)
 
-# --- 3. TAMPILAN UI (FRONTEND) ---
-st.title("🚀 Stock Performance Matrix")
-st.markdown("""
-Aplikasi untuk membandingkan kinerja saham dalam berbagai rentang waktu secara cepat.
-* **Format Input:** Bisa pakai Koma (`,`) atau Enter (Baris Baru).
-* **Auto .JK:** Ketik `BBCA` otomatis jadi `BBCA.JK`.
-* **Sorting:** Klik judul kolom untuk mengurutkan (Tertinggi/Terendah).
-""")
+# --- 3. TAMPILAN UI ---
+st.title("🚀 Stock Performance Matrix (Real Price)")
+st.markdown("Data menggunakan **Harga Penutupan Asli (Raw Close)**, bukan Adjusted, agar sesuai dengan aplikasi sekuritas.")
 
-# Input Area
 col1, col2 = st.columns([1, 4])
 
 with col1:
     st.write("### 📝 Input Saham")
-    default_input = "BBCA\nBBRI\nBMRI\nGOTO\nADRO\nUNVR\nTLKM\nAMMN\nBREN"
-    user_input = st.text_area("Daftar Kode Saham:", value=default_input, height=300, help="Pisahkan dengan Enter atau Koma")
+    default_input = "ADRO\nBBCA\nBBRI\nGOTO\nBREN\nPTBA"
+    user_input = st.text_area("Daftar Kode:", value=default_input, height=300)
     
-    calculate_btn = st.button("🔍 Hitung Performa", type="primary", use_container_width=True)
-    
-    if st.button("🗑️ Reset Cache", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
+    if st.button("🔍 Hitung", type="primary", use_container_width=True):
+        st.cache_data.clear() # Paksa refresh data baru
 
 with col2:
-    if calculate_btn and user_input:
-        with st.spinner("Mengambil data dari Yahoo Finance..."):
+    if user_input:
+        with st.spinner("Mengambil data Real-Time..."):
             df_result = get_performance_matrix(user_input)
             
             if not df_result.empty:
                 st.write(f"### 📊 Hasil Analisa ({len(df_result)} Saham)")
                 
-                # --- PERBAIKAN DI SINI ---
-                # frozen=True DIHAPUS karena bikin error di TextColumn
+                # Format Kolom (Angka & Warna Bar)
+                # Kita tambah column_config.ProgressColumn agar visualnya jelas
+                # Tapi user minta numerik sortable, jadi kita pakai NumberColumn dengan format %
+                
+                pct_fmt = st.column_config.NumberColumn(format="%.2f%%")
+                
                 column_settings = {
-                    "Ticker": st.column_config.TextColumn("Kode Saham"), 
-                    "Harga": st.column_config.NumberColumn("Harga Terakhir", format="Rp %.0f"),
-                    "1 Hari": st.column_config.NumberColumn("1 Hari", format="%.2f%%"),
-                    "1 Minggu": st.column_config.NumberColumn("1 Minggu", format="%.2f%%"),
-                    "1 Bulan": st.column_config.NumberColumn("1 Bulan", format="%.2f%%"),
-                    "6 Bulan": st.column_config.NumberColumn("6 Bulan", format="%.2f%%"),
-                    "YTD": st.column_config.NumberColumn("YTD", format="%.2f%%"),
-                    "1 Tahun": st.column_config.NumberColumn("1 Tahun", format="%.2f%%"),
-                    "3 Tahun": st.column_config.NumberColumn("3 Tahun", format="%.2f%%"),
+                    "Ticker": st.column_config.TextColumn("Kode", frozen=True),
+                    "Harga": st.column_config.NumberColumn("Harga", format="Rp %.0f"),
+                    "1 Hari": pct_fmt,
+                    "1 Minggu": pct_fmt,
+                    "1 Bulan": pct_fmt,
+                    "6 Bulan": pct_fmt,
+                    "YTD": pct_fmt,
+                    "1 Tahun": pct_fmt,
+                    "3 Tahun": pct_fmt,
                 }
 
+                # Trik Styling Pandas untuk mewarnai Text (Hijau/Merah)
+                # Ini tidak merusak sorting karena styler hanya visual
+                def color_negative_red(val):
+                    if val is None: return 'color: black'
+                    color = '#00C805' if val > 0 else '#FF333A' if val < 0 else 'black'
+                    return f'color: {color}; font-weight: bold'
+
+                styled_df = df_result.style.format({
+                    "1 Hari": "{:.2%}", "1 Minggu": "{:.2%}", "1 Bulan": "{:.2%}",
+                    "6 Bulan": "{:.2%}", "YTD": "{:.2%}", "1 Tahun": "{:.2%}", "3 Tahun": "{:.2%}"
+                }).applymap(color_negative_red, subset=["1 Hari", "1 Minggu", "1 Bulan", "6 Bulan", "YTD", "1 Tahun", "3 Tahun"])
+
                 st.dataframe(
-                    df_result,
+                    styled_df,
                     use_container_width=True,
                     hide_index=True,
-                    column_config=column_settings,
+                    column_config=column_settings, # Config header tetap dipakai
                     height=500
                 )
-                
-                st.caption("*Catatan: Kolom kosong (None) berarti saham belum listing pada periode tersebut.*")
-                
             else:
-                st.error("Data tidak ditemukan. Pastikan koneksi internet lancar atau kode saham benar.")
-                st.info("Tips: Coba masukkan kode satu per satu untuk memastikan.")
-    
-    elif not user_input:
-        st.info("👈 Silakan masukkan kode saham di sebelah kiri.")
+                st.error("Gagal mengambil data. Coba lagi.")
