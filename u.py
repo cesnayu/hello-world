@@ -389,7 +389,7 @@ with tab_sector:
                 )
 
 # === TAB 4: SEARCH & WATCHLIST (FIXED BULK PASTE) ===
-with tab_search:
+with tab_watch:
     st.header("🔍 Pencarian & Watchlist Saya")
     st.write("Cari saham dan tambahkan ke daftar pantauan. Bisa input satu atau banyak sekaligus (pisahkan koma).")
 
