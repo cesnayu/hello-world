@@ -72,31 +72,20 @@ def get_stock_history_bulk(tickers, period="3mo"):
 def get_single_stock_detail(ticker, period):
     if not ticker: return None
     try:
-        # Download data harga
         df = yf.download(ticker, period=period, progress=False, auto_adjust=False)
         if df.empty: return None
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-        
-        # Bersihkan kolom ganda
         df = df.loc[:, ~df.columns.duplicated()] 
-        
-        # Rename Adj Close jika Close tidak ada (safety)
         if 'Close' not in df.columns and 'Adj Close' in df.columns:
             df = df.rename(columns={'Adj Close': 'Close'})
-            
         df = df.reset_index()
         if 'Date' not in df.columns and 'Datetime' in df.columns: df = df.rename(columns={'Datetime': 'Date'})
-        
-        # Hapus timezone agar kompatibel
         df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None)
-        
         return df
     except: return None
 
-# --- FUNGSI BARU: FUNDAMENTAL INFO (SNAPSHOT) ---
 @st.cache_data(ttl=3600)
 def get_fundamental_info(ticker):
-    """Mengambil Data PBV, PER, EPS saat ini"""
     try:
         info = yf.Ticker(ticker).info
         return {
@@ -106,31 +95,22 @@ def get_fundamental_info(ticker):
             "mkt_cap": info.get('marketCap'),
             "sector": info.get('industry', '-')
         }
-    except:
-        return None
+    except: return None
 
-# --- FUNGSI BARU: HISTORICAL FINANCIALS (BAR CHART) ---
 @st.cache_data(ttl=3600)
 def get_financials_history(ticker):
-    """Mengambil Data Revenue & Net Income (Quarterly & Annual)"""
     try:
         stock = yf.Ticker(ticker)
-        
-        # Ambil Quarterly
         q_fin = stock.quarterly_financials.T
         if not q_fin.empty:
             q_fin.index = pd.to_datetime(q_fin.index).tz_localize(None)
             q_fin = q_fin.sort_index()
-        
-        # Ambil Annual
         a_fin = stock.financials.T
         if not a_fin.empty:
             a_fin.index = pd.to_datetime(a_fin.index).tz_localize(None)
             a_fin = a_fin.sort_index()
-            
         return q_fin, a_fin
-    except:
-        return pd.DataFrame(), pd.DataFrame()
+    except: return pd.DataFrame(), pd.DataFrame()
 
 @st.cache_data(ttl=600)
 def get_seasonal_details(tickers_str, start_month, end_month, lookback_years=5):
@@ -315,8 +295,14 @@ def get_performance_matrix(raw_input):
         except Exception: continue
     return pd.DataFrame(results)
 
+# --- FUNGSI BARU: WIN/LOSS STATS & DETAIL GRID (Updated) ---
 @st.cache_data(ttl=600)
-def get_win_loss_stats(raw_input):
+def get_win_loss_details(raw_input):
+    """
+    Mengembalikan 2 objek:
+    1. Summary Dataframe (untuk tabel atas)
+    2. Dictionary Detail Dataframe (untuk grid kotak 30 hari)
+    """
     clean_input = raw_input.replace('\n', ',').replace(' ', ',')
     tickers = []
     for t in clean_input.split(','):
@@ -325,13 +311,15 @@ def get_win_loss_stats(raw_input):
             if len(item) == 4 and item.isalpha(): item += ".JK"
             tickers.append(item)
     tickers = list(set(tickers))
-    if not tickers: return pd.DataFrame()
+    if not tickers: return pd.DataFrame(), {}
 
     try:
         data = yf.download(tickers, period="3mo", group_by='ticker', progress=False, auto_adjust=False)
-    except: return pd.DataFrame()
+    except: return pd.DataFrame(), {}
 
-    results = []
+    summary_results = []
+    detail_data = {} # Simpan raw data 30 hari disini
+
     for t in tickers:
         try:
             if len(tickers) == 1: df = data; symbol = tickers[0]
@@ -353,6 +341,10 @@ def get_win_loss_stats(raw_input):
             df_30 = df.tail(30)
             if len(df_30) < 5: continue 
 
+            # Simpan detail data untuk grid
+            detail_data[symbol] = df_30
+
+            # Hitung Statistik Summary
             green_days = df_30[df_30['Change'] > 0]
             red_days = df_30[df_30['Change'] < 0]
 
@@ -364,13 +356,13 @@ def get_win_loss_stats(raw_input):
             avg_loss = red_days['Change'].mean() if not red_days.empty else 0
             total_return_30d = ((df_30[col].iloc[-1] - df_30[col].iloc[0]) / df_30[col].iloc[0]) * 100
 
-            results.append({
+            summary_results.append({
                 "Ticker": symbol, "Total Candle": len(df_30), "Hari Hijau": count_green, "Hari Merah": count_red,
                 "Win Rate": win_rate, "Rata2 Naik": avg_gain, "Rata2 Turun": avg_loss, "Total Return (30 Candle)": total_return_30d
             })
         except: continue
     
-    return pd.DataFrame(results)
+    return pd.DataFrame(summary_results), detail_data
 
 # --- 6. VISUALISASI ---
 def create_stock_grid(tickers, chart_data):
@@ -386,23 +378,24 @@ def create_stock_grid(tickers, chart_data):
         if df.empty or 'Close' not in df.columns: continue
         df = df.dropna()
         if len(df) < 2: continue
+        
+        # MA20
+        ma20 = df['Close'].rolling(window=20).mean()
+        
         last_p = df['Close'].iloc[-1]
         prev_p = df['Close'].iloc[-2]
         color = '#00C805' if float(last_p) >= float(prev_p) else '#FF333A'
+        
         fig.add_trace(go.Scatter(x=df.index, y=df['Close'], mode='lines', line=dict(color=color, width=1.5), name=ticker), row=row, col=col)
+        fig.add_trace(go.Scatter(x=df.index, y=ma20, mode='lines', line=dict(color='#FF9800', width=1), name=f"{ticker} MA20", showlegend=False), row=row, col=col)
+        
         fig.add_vline(x=one_month_ago.timestamp() * 1000, line_width=1, line_dash="dot", line_color="blue", row=row, col=col)
         fig.update_xaxes(showticklabels=False, row=row, col=col)
         fig.update_yaxes(showticklabels=False, row=row, col=col)
     fig.update_layout(height=max(300, rows * 180), showlegend=False, margin=dict(l=10, r=10, t=40, b=10))
     return fig
 
-# --- UPDATED: DETAIL CHART DENGAN ROW 3 (FUNDAMENTALS) ---
 def create_detail_chart(df, ticker, df_fin_filtered):
-    """
-    df: Data Harga (Daily)
-    df_fin_filtered: Data Financials (Quarterly/Annual) yang sudah difilter range-nya
-    """
-    # Create 3 Rows: Price, Volume, Financials
     fig = make_subplots(
         rows=3, cols=1, 
         shared_xaxes=True, 
@@ -410,40 +403,15 @@ def create_detail_chart(df, ticker, df_fin_filtered):
         row_heights=[0.5, 0.2, 0.3],
         subplot_titles=(f"Price Action: {ticker}", "Volume", "Revenue & Net Income")
     )
-
-    # 1. Candlestick
     fig.add_trace(go.Candlestick(x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price", showlegend=False), row=1, col=1)
     if len(df) > 20: fig.add_trace(go.Scatter(x=df['Date'], y=df['Close'].rolling(20).mean(), line=dict(color='orange', width=1), name="MA 20"), row=1, col=1)
-    
-    # 2. Volume
     colors = ['#00C805' if c >= o else '#FF333A' for c, o in zip(df['Close'], df['Open'])]
     fig.add_trace(go.Bar(x=df['Date'], y=df['Volume'], marker_color=colors, name="Volume", showlegend=False), row=2, col=1)
-    
-    # 3. Fundamentals (Bar Chart)
     if not df_fin_filtered.empty:
-        # Cek kolom yang tersedia (biasanya 'Total Revenue' atau 'Revenue')
-        # yfinance suka gonta-ganti nama kolom
         rev_col = next((c for c in df_fin_filtered.columns if 'Revenue' in c or 'revenue' in c), None)
         inc_col = next((c for c in df_fin_filtered.columns if 'Net Income' in c or 'netIncome' in c), None)
-        
-        if rev_col:
-            fig.add_trace(go.Bar(
-                x=df_fin_filtered.index, 
-                y=df_fin_filtered[rev_col], 
-                name="Revenue", 
-                marker_color='blue',
-                opacity=0.6
-            ), row=3, col=1)
-            
-        if inc_col:
-            fig.add_trace(go.Bar(
-                x=df_fin_filtered.index, 
-                y=df_fin_filtered[inc_col], 
-                name="Net Income", 
-                marker_color='green',
-                opacity=0.8
-            ), row=3, col=1)
-
+        if rev_col: fig.add_trace(go.Bar(x=df_fin_filtered.index, y=df_fin_filtered[rev_col], name="Revenue", marker_color='blue', opacity=0.6), row=3, col=1)
+        if inc_col: fig.add_trace(go.Bar(x=df_fin_filtered.index, y=df_fin_filtered[inc_col], name="Net Income", marker_color='green', opacity=0.8), row=3, col=1)
     fig.update_layout(height=800, xaxis_rangeslider_visible=False, hovermode="x unified")
     return fig
 
@@ -451,6 +419,7 @@ def create_detail_chart(df, ticker, df_fin_filtered):
 st.title("📈 Super Stock Dashboard")
 default_tickers = ["BBCA.JK", "BBRI.JK", "BMRI.JK", "ASII.JK", "TLKM.JK", "UNVR.JK", "ADRO.JK", "ICBP.JK"] * 4 
 
+# TABS
 tab_grid, tab_vol, tab_sector, tab_watch, tab_detail, tab_cycle, tab_fund, tab_perf, tab_win = st.tabs([
     "📊 Grid", "🔊 Volume", "🏢 Sektor", "⭐ Watchlist", "🔎 Detail", "🔄 Cycle", "💎 Fundamental", "🚀 Performa", "🎲 Win/Loss Stats"
 ])
@@ -513,7 +482,6 @@ with tab_watch:
             dw = get_stock_history_bulk(cw)
             if not dw.empty: st.plotly_chart(create_stock_grid(cw, dw), use_container_width=True)
 
-# === TAB 5: DETAIL (UPDATED with Fundamentals) ===
 with tab_detail:
     st.header("🔎 Analisa Saham Mendalam")
     col_search, col_period = st.columns([2, 3])
@@ -522,32 +490,21 @@ with tab_detail:
         detail_ticker = st.text_input("Ketik Kode Saham:", value=default_ticker, key="detail_input").strip().upper()
     with col_period:
         period_options = ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"]
-        period_labels = {"1mo": "1 Bulan", "3mo": "3 Bulan", "6mo": "6 Bulan", "1y": "1 Tahun", "2y": "2 Tahun", "5y": "5 Tahun", "max": "Sejak IPO"}
-        selected_period_code = st.select_slider("Pilih Rentang Waktu:", options=period_options, value="1y", format_func=lambda x: period_labels[x])
+        selected_period_code = st.select_slider("Pilih Rentang Waktu:", options=period_options, value="1y")
     st.divider()
-    
     if detail_ticker:
         with st.spinner(f"Mengambil data {detail_ticker}..."):
-            # 1. Ambil Harga OHLCV
             df_detail = get_single_stock_detail(detail_ticker, selected_period_code)
-            
-            # 2. Ambil Info Fundamental (Snapshot)
             fund_info = get_fundamental_info(detail_ticker)
-            
             if df_detail is not None and not df_detail.empty:
-                # --- TAMPILAN HEADER (METRICS) ---
                 last_row = df_detail.iloc[-1]
                 prev_row = df_detail.iloc[-2] if len(df_detail) > 1 else last_row
                 change = last_row['Close'] - prev_row['Close']
                 pct_change = (change / prev_row['Close']) * 100
-                
-                # Baris 1: Harga & Volume
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Harga", f"{last_row['Close']:,.0f}", f"{pct_change:.2f}%")
                 m2.metric("Volume", f"{last_row['Volume']:,.0f}")
                 m3.metric("High", f"{df_detail['High'].max():,.0f}")
-                
-                # Baris 2: Fundamental Ratios
                 if fund_info:
                     m4.metric("Market Cap", f"{fund_info['mkt_cap']:,.0f}" if fund_info['mkt_cap'] else "-")
                     f1, f2, f3, f4 = st.columns(4)
@@ -555,30 +512,14 @@ with tab_detail:
                     f2.metric("PBV", f"{fund_info['pbv']:.2f}x" if fund_info['pbv'] else "-")
                     f3.metric("EPS (TTM)", f"{fund_info['eps']:.2f}" if fund_info['eps'] else "-")
                     f4.metric("Industri", fund_info['sector'])
-
-                # --- PERSIAPAN GRAFIK FUNDAMENTAL ---
-                # Ambil data financial history
                 q_fin, a_fin = get_financials_history(detail_ticker)
-                
-                # Tentukan mau pakai Annual atau Quarterly berdasarkan range slider
-                # Jika range > 2 tahun, pakai Annual biar tidak terlalu rapat. Jika < 2 tahun, Quarterly.
                 is_long_term = selected_period_code in ["2y", "5y", "max"]
                 df_fin_use = a_fin if is_long_term and not a_fin.empty else q_fin
-                
-                # Jika Annual kosong tapi Quarterly ada (atau sebaliknya), pakai yang ada aja
-                if df_fin_use.empty: 
-                    df_fin_use = q_fin if not q_fin.empty else a_fin
-
-                # Filter Fundamental Data agar sesuai dengan Range Chart Harga
+                if df_fin_use.empty: df_fin_use = q_fin if not q_fin.empty else a_fin
                 start_date_chart = df_detail['Date'].min()
-                if not df_fin_use.empty:
-                    df_fin_filtered = df_fin_use[df_fin_use.index >= start_date_chart]
-                else:
-                    df_fin_filtered = pd.DataFrame()
-
-                # --- PLOT CHART (3 ROWS) ---
+                if not df_fin_use.empty: df_fin_filtered = df_fin_use[df_fin_use.index >= start_date_chart]
+                else: df_fin_filtered = pd.DataFrame()
                 st.plotly_chart(create_detail_chart(df_detail, detail_ticker, df_fin_filtered), use_container_width=True)
-                
             else: st.error("Data tidak ditemukan.")
 
 with tab_cycle:
@@ -670,22 +611,75 @@ with tab_perf:
                 "1 Hari": pct_fmt, "1 Minggu": pct_fmt, "1 Bulan": pct_fmt,
                 "6 Bulan": pct_fmt, "YTD": pct_fmt, "1 Tahun": pct_fmt, "3 Tahun": pct_fmt})
 
+# === TAB 9: WIN/LOSS STATS & DETAIL GRID (NEW) ===
 with tab_win:
     st.header("🎲 Probabilitas Harian (30 Hari Terakhir)")
     st.write("Analisis jumlah hari Hijau vs Merah untuk menentukan tren dan probabilitas.")
     win_input = st.text_area("Input Saham:", value=def_perf, height=100, key="win_in")
+    
     if st.button("Hitung Probabilitas", key="btn_win"):
         with st.spinner("Menganalisis data harian..."):
-            st.session_state['win_data'] = get_win_loss_stats(win_input)
-    if 'win_data' in st.session_state and not st.session_state['win_data'].empty:
-        df_win = st.session_state['win_data']
+            # Panggil fungsi yang mengembalikan (Summary, Detail Dict)
+            summary_df, detail_dict = get_win_loss_details(win_input)
+            st.session_state['win_summary'] = summary_df
+            st.session_state['win_details'] = detail_dict
+            
+    if 'win_summary' in st.session_state and not st.session_state['win_summary'].empty:
+        # 1. Tampilkan Summary Table
+        st.subheader("Rangkuman Statistik")
+        df_win = st.session_state['win_summary']
         def highlight_win(val):
             color = '#d4f7d4' if val >= 60 else '#f7d4d4' if val <= 40 else ''
             return f'background-color: {color}'
         st.dataframe(df_win.style.format({
-                "Win Rate": "{:.1f}%",
-                "Rata2 Naik": "+{:.2f}%",
-                "Rata2 Turun": "{:.2f}%",
-                "Total Return (30 Candle)": "{:.2f}%"
+                "Win Rate": "{:.1f}%", "Rata2 Naik": "+{:.2f}%", "Rata2 Turun": "{:.2f}%", "Total Return (30 Candle)": "{:.2f}%"
             }).applymap(highlight_win, subset=['Win Rate']), use_container_width=True, hide_index=True)
-        st.info("💡 **Tips Strategi:** Jika Win Rate > 60% (Hijau), beli saat koreksi (merah). Jika Win Rate < 40% (Merah), hindari tangkap pisau jatuh.")
+        
+        st.divider()
+        st.subheader("🗓️ Detail Pergerakan Harian (Grid 30 Hari)")
+        
+        # 2. Tampilkan Detail Grid per Saham
+        detail_data = st.session_state['win_details']
+        
+        # CSS untuk Kotak Indah
+        st.markdown("""
+        <style>
+        .day-box {
+            display: inline-block;
+            width: 70px;
+            height: 70px;
+            margin: 4px;
+            padding: 8px 2px;
+            border-radius: 8px;
+            text-align: center;
+            color: white;
+            font-family: sans-serif;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+        }
+        .day-date { font-size: 10px; margin-bottom: 4px; opacity: 0.9; font-weight: bold; }
+        .day-val { font-size: 13px; font-weight: bold; }
+        </style>
+        """, unsafe_allow_html=True)
+
+        for ticker, df_30 in detail_data.items():
+            with st.expander(f"📊 {ticker} - Detail 30 Hari", expanded=True):
+                # Generate HTML Grid
+                html_code = "<div style='display: flex; flex-wrap: wrap;'>"
+                
+                # Loop dari data terlama ke terbaru (atau sebaliknya, disini urutan waktu)
+                # Kita balik biar yang paling kanan bawah adalah hari ini (standard kalender)
+                for date, row in df_30.iterrows():
+                    val = row['Change']
+                    color = "#00C805" if val >= 0 else "#FF333A"
+                    date_str = date.strftime("%d %b")
+                    val_str = f"{val:+.2f}%"
+                    
+                    html_code += f"""
+                    <div class='day-box' style='background-color: {color};'>
+                        <div class='day-date'>{date_str}</div>
+                        <div class='day-val'>{val_str}</div>
+                    </div>
+                    """
+                html_code += "</div>"
+                
+                st.markdown(html_code, unsafe_allow_html=True)
