@@ -13,7 +13,7 @@ st.set_page_config(layout="wide", page_title="Super Stock Dashboard")
 
 DB_FILE = "stock_database.json"
 
-# --- 2. FUNGSI DATABASE (PERSISTENCE) ---
+# --- 2. FUNGSI DATABASE ---
 def load_data():
     if os.path.exists(DB_FILE):
         try:
@@ -26,7 +26,7 @@ def load_data():
 def save_data():
     data = {
         "watchlist": st.session_state.get("watchlist", []),
-        # Kita simpan list Tab 2 di sini agar tidak hilang
+        "vol_watchlist": st.session_state.get("vol_watchlist", []),
         "vol_saved_tickers": st.session_state.get("vol_saved_tickers", [])
     }
     with open(DB_FILE, "w") as f:
@@ -34,15 +34,12 @@ def save_data():
 
 # --- 3. INISIALISASI SESSION ---
 saved_data = load_data()
-
-# Load Main Watchlist
 if 'watchlist' not in st.session_state:
     st.session_state.watchlist = saved_data["watchlist"] if (saved_data and "watchlist" in saved_data) else ["BBCA.JK", "GOTO.JK", "BBRI.JK"]
-
-# Load Volume Watchlist (Tab 2 Persistence)
+if 'vol_watchlist' not in st.session_state:
+    st.session_state.vol_watchlist = saved_data["vol_watchlist"] if (saved_data and "vol_watchlist" in saved_data) else ["GOTO.JK", "BBRI.JK", "BUMI.JK"]
 if 'vol_saved_tickers' not in st.session_state:
     st.session_state.vol_saved_tickers = saved_data["vol_saved_tickers"] if (saved_data and "vol_saved_tickers" in saved_data) else []
-
 if 'picked_stocks' not in st.session_state:
     st.session_state.picked_stocks = []
 
@@ -59,13 +56,11 @@ SAMPLE_SCREENER_TICKERS = GRID_TICKERS
 @st.cache_data(ttl=600)
 def get_stock_history_bulk(tickers, period="3mo"):
     if not tickers: return pd.DataFrame()
-    # Logic 1 Hari: Pakai 5m interval
     interv = "5m" if period == "1d" else "1d"
     try:
         data = yf.download(tickers, period=period, interval=interv, group_by='ticker', progress=False, auto_adjust=False)
         return data
-    except:
-        return pd.DataFrame()
+    except: return pd.DataFrame()
 
 @st.cache_data(ttl=300)
 def get_single_stock_detail(ticker, period):
@@ -154,9 +149,6 @@ def get_seasonal_details(tickers_str, start_month, end_month, lookback_years=5):
 @st.cache_data(ttl=300)
 def get_stock_volume_stats(tickers_list, period_code="1mo"):
     if not tickers_list: return None
-    
-    # Logic: Jika user minta 1d, kita tetap butuh history (misal 5d) untuk hitung Avg Volume
-    # Tapi Change % nya kita ambil dari data 1d
     download_period = "5d" if period_code == "1d" else "1mo"
     if period_code == "ytd": download_period = "ytd"
     elif period_code == "1y": download_period = "1y"
@@ -178,46 +170,39 @@ def get_stock_volume_stats(tickers_list, period_code="1mo"):
             if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
             df = df.loc[:, ~df.columns.duplicated()]
             
-            # Data Terakhir
             last_vol = df['Volume'].iloc[-1]
             last_close = df['Close'].iloc[-1]
-            
-            # Hitung Avg Vol (selalu 5 hari terakhir utk referensi)
             avg_vol = df['Volume'].tail(5).mean()
             
-            # Hitung Change % Sesuai Periode Pilihan
             if period_code == "1d":
-                # Intraday Change (Close - Open) / Open
-                # Atau Close hari ini vs Close Kemarin? Biasanya vs Kemarin.
                 if len(df) >= 2:
                     prev_close = df['Close'].iloc[-2]
                     change_pct = ((last_close - prev_close) / prev_close) * 100
                 else: change_pct = 0.0
             else:
-                # Change dari awal periode download
                 first_close = df['Close'].iloc[0]
                 change_pct = ((last_close - first_close) / first_close) * 100
 
             stats.append({
-                "Ticker": symbol, 
-                "Price": last_close,
-                "Change %": change_pct,
-                "Volume": last_vol, 
-                "Avg Vol (5D)": avg_vol, 
-                "Est. Value": last_close * last_vol,
+                "Ticker": symbol, "Price": last_close, "Change %": change_pct,
+                "Volume": last_vol, "Avg Vol (5D)": avg_vol, "Est. Value": last_close * last_vol,
                 "Vol vs Avg": (last_vol / avg_vol) if avg_vol > 0 else 0
             })
         except: continue
     return pd.DataFrame(stats)
 
+# --- FUNGSI BARU: SNAPSHOT HARGA & VOLUME (UTK FILTER TAB 1) ---
 @st.cache_data(ttl=300)
-def get_latest_prices(tickers):
+def get_latest_snapshot(tickers):
     if not tickers: return {}
     try:
+        # Download 1 hari terakhir
         data = yf.download(tickers, period="1d", group_by='ticker', progress=False, auto_adjust=False)
-        prices = {}
+        snapshot = {}
+        
         for t in tickers:
             try:
+                # Ekstrak DF per ticker
                 if len(tickers) == 1: df = data
                 else: 
                     if isinstance(data.columns, pd.MultiIndex):
@@ -226,12 +211,21 @@ def get_latest_prices(tickers):
                     else:
                         if len(tickers) == 1: df = data 
                         else: continue
+                
                 if not df.empty:
-                    col = 'Close' if 'Close' in df.columns else 'Adj Close'
-                    last_price = df[col].iloc[-1]
-                    prices[t] = float(last_price)
+                    col_close = 'Close' if 'Close' in df.columns else 'Adj Close'
+                    last_price = float(df[col_close].iloc[-1])
+                    last_vol = float(df['Volume'].iloc[-1])
+                    
+                    # Simpan data: Harga, Volume (Lembar), Value (Rupiah)
+                    snapshot[t] = {
+                        'price': last_price,
+                        'volume_share': last_vol,
+                        'volume_lot': last_vol / 100,
+                        'value': last_price * last_vol
+                    }
             except: continue
-        return prices
+        return snapshot
     except: return {}
 
 @st.cache_data(ttl=3600)
@@ -449,24 +443,45 @@ tab_grid, tab_compare, tab_vol, tab_watch, tab_detail, tab_cycle, tab_fund, tab_
     "📊 Grid", "⚖️ Bandingkan", "🔊 Volume", "⭐ Watchlist", "🔎 Detail", "🔄 Cycle", "💎 Fundamental", "🚀 Performa", "🎲 Win/Loss Stats"
 ])
 
-# === TAB 1: GRID (FILTERED + 1 DAY OPTION) ===
-with tab_grid:
-    st.write("Grid Overview - **Pilih saham untuk dimasukkan ke tab 'Bandingkan'**")
+# === SIDEBAR MENU ===
+st.sidebar.title("Menu Navigasi")
+menu = st.sidebar.radio(
+    "Pilih Fitur:",
+    ["📊 Grid Overview", "⚖️ Bandingkan", "🔊 Analisa Volume", "⭐ Watchlist", "🔎 Detail Saham", "🔄 Cycle Analysis", "💎 Fundamental", "🚀 Performa", "🎲 Win/Loss Stats"]
+)
+
+# === PAGE 1: GRID ===
+if menu == "📊 Grid Overview":
+    st.header("📊 Grid Overview")
+    st.write("Pilih saham untuk dimasukkan ke menu 'Bandingkan'.")
     
-    with st.expander("🔍 Filter Grid (Harga)", expanded=False):
-        c_min, c_max = st.columns(2)
-        with c_min: min_p = st.number_input("Harga Minimum (Rp)", value=0, step=50)
-        with c_max: max_p = st.number_input("Harga Maksimum (Rp)", value=100000, step=50)
+    with st.expander("🔍 Filter Grid (Harga & Volume)", expanded=False):
+        c1, c2, c3, c4 = st.columns(4)
+        with c1: min_p = st.number_input("Min Harga (Rp)", value=0, step=50)
+        with c2: max_p = st.number_input("Max Harga (Rp)", value=100000, step=50)
+        with c3: min_val_m = st.number_input("Min. Transaksi (Miliar Rp)", value=0, step=1)
+        with c4: min_vol_l = st.number_input("Min. Volume (Lot)", value=0, step=1000)
     
     final_tickers = GRID_TICKERS
     
-    if max_p < 100000 or min_p > 0:
+    # LOGIC FILTER
+    is_filtering = (max_p < 100000) or (min_p > 0) or (min_val_m > 0) or (min_vol_l > 0)
+    
+    if is_filtering:
         with st.spinner("Memfilter saham..."):
-            prices = get_latest_prices(GRID_TICKERS)
+            # Gunakan get_latest_snapshot untuk ambil Harga & Volume sekaligus
+            snapshot = get_latest_snapshot(GRID_TICKERS)
             filtered_list = []
-            for t, p in prices.items():
-                if min_p <= p <= max_p:
+            
+            for t, stats in snapshot.items():
+                price = stats['price']
+                val_miliar = stats['value'] / 1_000_000_000 # Convert ke Miliar
+                vol_lot = stats['volume_lot']
+                
+                # Cek Kondisi
+                if (min_p <= price <= max_p) and (val_miliar >= min_val_m) and (vol_lot >= min_vol_l):
                     filtered_list.append(t)
+                    
             final_tickers = filtered_list
             st.success(f"Ditemukan {len(final_tickers)} saham sesuai filter.")
 
@@ -529,14 +544,14 @@ with tab_grid:
                             else: st.caption(f"⚠️ {ticker}")
                         except Exception as e: st.caption(f"⚠️ {ticker} Error")
 
-    st.info(f"🛒 Keranjang Pilihan: {len(st.session_state.picked_stocks)} saham terpilih. Buka Tab '⚖️ Bandingkan' untuk seleksi.")
+    st.info(f"🛒 Keranjang Pilihan: {len(st.session_state.picked_stocks)} saham terpilih. Buka Menu '⚖️ Bandingkan' untuk seleksi.")
 
-# === TAB 10: BANDINGKAN ===
-with tab_compare:
+# === PAGE 2: BANDINGKAN ===
+elif menu == "⚖️ Bandingkan":
     st.header("⚖️ Bandingkan & Eliminasi")
     picked = st.session_state.picked_stocks
     if not picked:
-        st.warning("Belum ada saham yang dipilih dari Tab '📊 Grid'.")
+        st.warning("Belum ada saham yang dipilih dari Menu '📊 Grid'.")
     else:
         st.write(f"Membandingkan **{len(picked)}** saham pilihanmu.")
         if st.button("🗑️ Hapus Semua Pilihan"):
@@ -565,21 +580,18 @@ with tab_compare:
                                 st.rerun()
                     except: st.error(f"Gagal load {ticker}")
 
-# === TAB 2: VOLUME (FIXED PERSISTENCE & 1 DAY OPTION) ===
-with tab_vol:
+# === PAGE 3: VOLUME ===
+elif menu == "🔊 Analisa Volume":
     st.header("Analisis Volume")
     st.write("Cari volume saham spesifik atau lihat Top 20 dari saham-saham populer.")
     
-    # Init text area dengan data dari DB (Persistent)
     default_text = ", ".join(st.session_state.vol_saved_tickers)
     
-    # 1. INPUTS
     c1, c2 = st.columns([3, 1])
     with c1:
-        vol_input = st.text_area("Input Saham (Pisahkan koma/spasi/enter):", value=default_text, height=70, placeholder="Misal: BBCA, GOTO", key="vol_in_multi")
+        vol_input = st.text_area("Input Saham:", value=default_text, height=70, placeholder="Misal: BBCA, GOTO", key="vol_in_multi")
     with c2:
         st.write("")
-        # Add Period Selector for Volume Tab
         vol_period = st.selectbox("Rentang Waktu:", ["1 Hari", "1 Minggu", "1 Bulan", "YTD"], index=2)
         vol_period_map = {"1 Hari": "1d", "1 Minggu": "5d", "1 Bulan": "1mo", "YTD": "ytd"}
         selected_vol_period = vol_period_map[vol_period]
@@ -590,15 +602,13 @@ with tab_vol:
     with c4:
         btn_top20 = st.button("🔥 Top 20 Volume", use_container_width=True)
     with c5:
-        # Tombol Clear (Hapus) yang sekaligus mereset DB
         if st.button("🗑️ Hapus List", use_container_width=True):
             st.session_state.vol_saved_tickers = []
             save_data()
-            st.rerun() # RERUN AGAR LANGSUNG HILANG (Fix Double Click)
+            st.rerun()
 
     df_vol_result = pd.DataFrame()
 
-    # 2. LOGIC
     if btn_custom and vol_input:
         raw_list = vol_input.replace('\n', ',').replace(' ', ',').split(',')
         clean_list = []
@@ -608,14 +618,12 @@ with tab_vol:
                 if len(item) == 4 and item.isalpha(): item += ".JK"
                 clean_list.append(item)
         if clean_list:
-            # SAVE TO DB (Persistence)
             st.session_state.vol_saved_tickers = list(set(clean_list))
             save_data()
-            
             with st.spinner("Menganalisa input..."):
                 df_vol_result = get_stock_volume_stats(list(set(clean_list)), period_code=selected_vol_period)
                 st.session_state['vol_result'] = df_vol_result 
-                st.rerun() # RERUN AGAR UPDATE UI
+                st.rerun()
 
     elif btn_top20:
         with st.spinner("Scanning Top 20 Volume..."):
@@ -624,7 +632,6 @@ with tab_vol:
                 df_vol_result = df_all.sort_values(by="Volume", ascending=False).head(20)
                 st.session_state['vol_result'] = df_vol_result
 
-    # 3. DISPLAY
     if 'vol_result' in st.session_state and not st.session_state['vol_result'].empty:
         df_show = st.session_state['vol_result']
         st.divider()
@@ -648,7 +655,8 @@ with tab_vol:
                 "Vol vs Avg": "{:.2f}x"
             }).applymap(highlight_vol_spike, subset=['Vol vs Avg']), use_container_width=True, hide_index=True)
 
-with tab_watch:
+# === PAGE 4: WATCHLIST ===
+elif menu == "⭐ Watchlist":
     st.header("Watchlist Saya")
     ci, cb = st.columns([3, 1])
     with ci: nt = st.text_input("Kode:", key="sb").strip().upper()
@@ -680,7 +688,8 @@ with tab_watch:
                                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                         except: pass
 
-with tab_detail:
+# === PAGE 5: DETAIL ===
+elif menu == "🔎 Detail Saham":
     st.header("🔎 Analisa Saham Mendalam")
     col_search, col_period = st.columns([2, 3])
     with col_search:
@@ -721,7 +730,8 @@ with tab_detail:
                 st.plotly_chart(create_detail_chart(df_detail, detail_ticker, df_fin_filtered), use_container_width=True)
             else: st.error("Data tidak ditemukan.")
 
-with tab_cycle:
+# === PAGE 6: CYCLE ===
+elif menu == "🔄 Cycle Analysis":
     st.header("🔄 Cycle Analysis")
     c1, c2, c3 = st.columns([2, 1, 1])
     with c1:
@@ -758,7 +768,8 @@ with tab_cycle:
                     st.plotly_chart(fig, use_container_width=True)
         else: st.warning("Data tidak cukup.")
 
-with tab_fund:
+# === PAGE 7: FUNDAMENTAL ===
+elif menu == "💎 Fundamental":
     st.header("💎 Fundamental & Classification Screener")
     default_txt = ", ".join(SAMPLE_SCREENER_TICKERS)
     user_screener_input = st.text_area("Input Saham (Pisahkan koma):", value=default_txt, height=100)
@@ -784,7 +795,8 @@ with tab_fund:
                     "EPS": st.column_config.NumberColumn("EPS", format="%.2f")})
             st.write("")
 
-with tab_perf:
+# === PAGE 8: PERFORMANCE ===
+elif menu == "🚀 Performa":
     st.header("🚀 Tabel Performa Saham")
     st.write("Data menggunakan **Raw Price** & **Calendar Slicing**. Menampilkan Industri.")
     def_perf = ", ".join(st.session_state.watchlist) if st.session_state.watchlist else "ADRO.JK\nBBCA.JK\nBBRI.JK\nGOTO.JK"
@@ -810,7 +822,8 @@ with tab_perf:
                 "1 Hari": pct_fmt, "1 Minggu": pct_fmt, "1 Bulan": pct_fmt,
                 "6 Bulan": pct_fmt, "YTD": pct_fmt, "1 Tahun": pct_fmt, "3 Tahun": pct_fmt})
 
-with tab_win:
+# === PAGE 9: WIN/LOSS ===
+elif menu == "🎲 Win/Loss Stats":
     st.header("🎲 Probabilitas Harian (30 Hari Terakhir)")
     st.write("Analisis jumlah hari Hijau vs Merah untuk menentukan tren dan probabilitas.")
     win_input = st.text_area("Input Saham:", value=def_perf, height=100, key="win_in")
@@ -859,4 +872,3 @@ with tab_win:
                     html_code += f"<div class='day-box' style='background-color: {color};'><div class='day-date'>{date_str}</div><div class='day-val'>{val_str}</div></div>"
                 html_code += "</div>"
                 st.markdown(html_code, unsafe_allow_html=True)
-
