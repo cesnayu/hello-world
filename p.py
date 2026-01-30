@@ -2,14 +2,13 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
 import io
 
 # --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="Pro Dashboard - Percentage View", layout="wide")
+st.set_page_config(page_title="Pro Trader Dashboard", layout="wide")
 
-# --- LIST SAHAM (DEFAULT) ---
-# Bisa kamu update sesuai kebutuhan
+# --- LIST SAHAM DEFAULT ---
 DEFAULT_TICKERS = [
     'BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'BBNI.JK', 'TLKM.JK', 'ASII.JK', 'UNVR.JK', 'ICBP.JK', 
     'INDF.JK', 'KLBF.JK', 'CPIN.JK', 'ADRO.JK', 'PTBA.JK', 'ANTM.JK', 'INCO.JK', 'ITMG.JK', 
@@ -21,209 +20,199 @@ DEFAULT_TICKERS = [
     'BUMI.JK', 'ENRG.JK', 'DEWA.JK', 'BRMS.JK', 'ARTO.JK', 'BRIS.JK', 'AGRO.JK', 'BBHI.JK'
 ]
 
-# --- FUNGSI CHART KHUSUS (PERSENTASE BASIS 0%) ---
-def plot_percentage_chart(data, ticker):
+# --- 1. GRAFIK CANDLESTICK (KHUSUS INTRADAY) ---
+def plot_candlestick_chart(data, ticker):
     """
-    Membuat grafik dimana titik terendah (Low) dianggap 0%.
-    Sumbu Y kanan menunjukkan seberapa persen kenaikan dari titik terendah itu.
+    Menampilkan grafik lilin (Candlestick) untuk melihat High/Low per periode waktu.
     """
-    # 1. Tentukan Titik Terendah (Baseline)
-    min_price = data['Close'].min()
-    
-    # 2. Konversi Harga ke Persentase Kenaikan dari Titik Terendah
-    # Rumus: ((Harga - Terendah) / Terendah) * 100
-    # Hasilnya: Titik terendah jadi 0, titik lain jadi positif (misal 5.2%)
-    data['Pct_From_Low'] = ((data['Close'] - min_price) / min_price) * 100
-    
-    # Tentukan warna (Hijau jika close > open awal, Merah jika turun)
-    color = '#00C805' if data['Close'].iloc[-1] >= data['Open'].iloc[0] else '#FF3B30'
-    
     fig = go.Figure()
     
-    fig.add_trace(go.Scatter(
+    # Warna: Hijau (Naik), Merah (Turun)
+    fig.add_trace(go.Candlestick(
         x=data.index,
-        y=data['Pct_From_Low'],
-        mode='lines',
-        line=dict(color=color, width=2),
-        fill='tozeroy', # Isi area bawah biar kelihatan volumenya
-        fillcolor=f"rgba{tuple(int(color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)) + (0.1,)}", # Transparan
-        hovertemplate='<b>%{y:.2f}%</b> dari Low<extra></extra>'
+        open=data['Open'],
+        high=data['High'],
+        low=data['Low'],
+        close=data['Close'],
+        name=ticker,
+        increasing_line_color='#00C805', # Hijau Terang
+        decreasing_line_color='#FF3B30'  # Merah Terang
     ))
     
     fig.update_layout(
-        title=dict(
-            text=f"<b>{ticker}</b>",
-            font=dict(size=14),
-            x=0
-        ),
-        margin=dict(l=0, r=40, t=35, b=0), # Margin kanan r=40 untuk angka axis
-        height=180,
+        title=dict(text=f"<b>{ticker}</b> (Intraday)", font=dict(size=14), x=0),
+        margin=dict(l=0, r=10, t=35, b=0),
+        height=200,
         showlegend=False,
-        # --- LOGIKA SUMBU Y PERSENTASE ---
+        xaxis_rangeslider_visible=False, # Hilangkan slider bawah biar rapi
         yaxis=dict(
-            side='right',       # Angka di KANAN
-            showgrid=True,      # Tampilkan garis mendatar
-            gridcolor='#eee',   # Warna garis tipis
-            ticksuffix='%',     # Tambah tanda %
-            zeroline=False,
-            tickfont=dict(size=10, color='gray')
+            side='right',
+            showgrid=True,
+            gridcolor='#eee',
+            tickfont=dict(size=10)
         ),
         xaxis=dict(
             showgrid=False,
-            showticklabels=False # Sembunyikan tanggal biar bersih
-        ),
-        hovermode="x unified"
+            type='date',
+            tickformat='%H:%M' # Format Jam:Menit
+        )
     )
-    
     return fig
 
-# --- FUNGSI AMBIL DATA (BATCHING BIAR CEPAT) ---
-@st.cache_data(ttl=600)
-def get_stock_data_batch(tickers_list):
+# --- 2. GRAFIK PERSENTASE (KHUSUS HISTORY PANJANG) ---
+def plot_percentage_chart(data, ticker):
+    """
+    Grafik garis basis 0% (Low Terendah).
+    """
+    min_price = data['Close'].min()
+    data['Pct_From_Low'] = ((data['Close'] - min_price) / min_price) * 100
+    color = '#00C805' if data['Close'].iloc[-1] >= data['Open'].iloc[0] else '#FF3B30'
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=data.index, y=data['Pct_From_Low'], mode='lines',
+        line=dict(color=color, width=2),
+        fill='tozeroy', fillcolor=f"rgba{tuple(int(color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)) + (0.1,)}"
+    ))
+    
+    fig.update_layout(
+        title=dict(text=f"<b>{ticker}</b> (1 Month)", font=dict(size=14), x=0),
+        margin=dict(l=0, r=35, t=35, b=0),
+        height=200,
+        showlegend=False,
+        yaxis=dict(side='right', showgrid=True, gridcolor='#eee', ticksuffix='%', zeroline=False),
+        xaxis=dict(showgrid=False, showticklabels=False),
+        hovermode="x unified"
+    )
+    return fig
+
+# --- FUNGSI AMBIL DATA (DINAMIS) ---
+@st.cache_data(ttl=300)
+def get_stock_data(tickers_list, mode):
     all_results = []
     chunk_size = 50 
     
-    # Progress UI
+    # Tentukan Parameter Download berdasarkan Mode
+    if mode == "Intraday (1 Hari)":
+        period_req = "1d"
+        interval_req = "15m" # Data per 15 menit agar jadi candlestick
+    else:
+        period_req = "1mo"
+        interval_req = "1d"  # Data harian biasa
+    
     progress_bar = st.progress(0)
     status_text = st.empty()
-    total_tickers = len(tickers_list)
+    total = len(tickers_list)
     
-    for i in range(0, total_tickers, chunk_size):
-        batch_tickers = tickers_list[i : i + chunk_size]
-        batch_str = " ".join(batch_tickers)
+    for i in range(0, total, chunk_size):
+        batch = tickers_list[i : i + chunk_size]
+        batch_str = " ".join(batch)
         
-        status_text.text(f"Scanning... ({i}/{total_tickers})")
-        progress_bar.progress(min((i + chunk_size) / total_tickers, 1.0))
+        status_text.text(f"Mengambil data {mode}... ({i}/{total})")
+        progress_bar.progress(min((i + chunk_size) / total, 1.0))
         
         try:
-            # Ambil data 1 Bulan (agar grafik terlihat trennya)
-            data = yf.download(batch_str, period='1mo', group_by='ticker', threads=True, progress=False)
+            data = yf.download(batch_str, period=period_req, interval=interval_req, group_by='ticker', threads=True, progress=False)
             
-            for ticker in batch_tickers:
+            for ticker in batch:
                 try:
-                    # Handling MultiIndex Dataframe
-                    if len(batch_tickers) > 1:
+                    if len(batch) > 1:
                         if ticker not in data.columns.levels[0]: continue
                         hist = data[ticker].dropna()
                     else:
                         hist = data.dropna()
                     
-                    if len(hist) > 5:
+                    if len(hist) > 1:
                         # Fix Index
                         if not isinstance(hist.index, pd.DatetimeIndex):
                             hist.index = pd.to_datetime(hist.index)
                         
-                        # Data Harga
-                        curr_price = hist['Close'].iloc[-1]
+                        curr = hist['Close'].iloc[-1]
+                        op = hist['Open'].iloc[0]
                         
-                        # Perubahan 1 Hari
-                        prev_close = hist['Close'].iloc[-2]
-                        day_change = ((curr_price - prev_close) / prev_close) * 100
-                        
-                        # Perubahan 1 Minggu (5 hari bursa)
-                        week_close = hist['Close'].iloc[-6] if len(hist) >= 6 else hist['Close'].iloc[0]
-                        week_change = ((curr_price - week_close) / week_close) * 100
-                        
-                        # Volatilitas Range (High-Low)
-                        range_pct = ((hist['High'].max() - hist['Low'].min()) / hist['Low'].min()) * 100
-                        
+                        # Hitung Kenaikan (Logic beda dikit tiap mode)
+                        if mode == "Intraday (1 Hari)":
+                            change = ((curr - op) / op) * 100 # Change sejak Open pagi ini
+                            volatility = ((hist['High'].max() - hist['Low'].min()) / hist['Low'].min()) * 100
+                            week_change = 0 # Tidak relevan di mode intraday
+                        else:
+                            prev = hist['Close'].iloc[-2]
+                            change = ((curr - prev) / prev) * 100
+                            volatility = ((hist['High'].max() - hist['Low'].min()) / hist['Low'].min()) * 100
+                            # 1 Week Change (Approximation)
+                            w_idx = -6 if len(hist) >= 6 else 0
+                            week_change = ((curr - hist['Close'].iloc[w_idx]) / hist['Close'].iloc[w_idx]) * 100
+
                         all_results.append({
                             'Ticker': ticker.replace('.JK', ''),
-                            'Harga': curr_price,
-                            'Hari Ini %': day_change,
-                            '1 Minggu %': week_change,
-                            'Volatilitas': range_pct,
-                            'Data': hist # Simpan data untuk grafik
+                            'Harga': curr,
+                            'Change %': change,
+                            '1W %': week_change,
+                            'Volatilitas': volatility,
+                            'Data': hist
                         })
-                except:
-                    continue
-        except:
-            continue
+                except: continue
+        except: continue
             
     progress_bar.empty()
     status_text.empty()
     return pd.DataFrame(all_results)
 
-# --- FITUR DOWNLOAD EXCEL ---
-def generate_excel(df_results):
-    output = io.BytesIO()
-    all_data = []
-    for _, row in df_results.iterrows():
-        d = row['Data'].tail(5).copy().reset_index() # 5 Hari terakhir
-        d['Ticker'] = row['Ticker']
-        # Rename date col if needed
-        if 'index' in d.columns: d.rename(columns={'index':'Date'}, inplace=True)
-        # Standardize columns
-        cols = [c for c in ['Date', 'Ticker', 'Open', 'High', 'Low', 'Close', 'Volume'] if c in d.columns]
-        all_data.append(d[cols])
-        
-    if all_data:
-        final = pd.concat(all_data)
-        final['Date'] = final['Date'].astype(str)
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            final.to_excel(writer, index=False, sheet_name='Data 5 Hari')
-    return output.getvalue()
+# --- UI UTAMA ---
+st.title("📈 Super Trader Dashboard")
 
-# --- UTAMA (UI) ---
-st.title("📊 Market Scanner: Percentage View")
-st.markdown("""
-**Fitur Baru:** Grafik menggunakan skala **Persentase**.
-* **0% (Garis Bawah)** = Harga terendah dalam periode grafik (1 Bulan).
-* **Sumbu Kanan** = Menunjukkan berapa persen harga saat ini berada di atas titik terendah tersebut.
-""")
+# 1. KONTROL MODE TAMPILAN
+col_opt1, col_opt2, col_opt3 = st.columns([1, 1, 2])
+with col_opt1:
+    view_mode = st.selectbox("Pilih Timeframe:", ["Intraday (1 Hari)", "History (1 Bulan)"])
+with col_opt2:
+    if st.button("🔄 Refresh Data"):
+        st.cache_data.clear()
+        st.rerun()
 
-if st.button("🔄 Refresh Market Data"):
-    st.cache_data.clear()
-    st.rerun()
-
-# 1. LOAD DATA
-df = get_stock_data_batch(DEFAULT_TICKERS)
+# 2. PROSES DATA
+df = get_stock_data(DEFAULT_TICKERS, view_mode)
 
 if not df.empty:
-    # 2. TOMBOL DOWNLOAD
-    with st.expander("📥 Download Data Excel"):
-        st.download_button(
-            "Download .xlsx (5 Hari Terakhir)",
-            data=generate_excel(df),
-            file_name=f"market_data_{datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
     
-    # 3. KONTROL FILTER TAMPILAN
-    col_filter1, col_filter2 = st.columns([2,1])
-    with col_filter1:
-        sort_by = st.selectbox("Urutkan Berdasarkan:", 
-                               ["Volatilitas (Paling Liar)", "Kenaikan Hari Ini", "Penurunan Hari Ini", "Kenaikan 1 Minggu"])
+    # 3. FILTER & SORTING
+    col_sort1, col_sort2 = st.columns([2, 2])
+    with col_sort1:
+        sort_option = st.selectbox("Urutkan Berdasarkan:", 
+                                   ["Volatilitas (Range Terlebar)", "Top Gainers", "Top Losers"])
     
-    # Logika Sorting
-    if sort_by == "Volatilitas (Paling Liar)":
+    # Logic Sorting
+    if sort_option == "Volatilitas (Range Terlebar)":
         df_display = df.nlargest(20, 'Volatilitas')
-    elif sort_by == "Kenaikan Hari Ini":
-        df_display = df.nlargest(20, 'Hari Ini %')
-    elif sort_by == "Penurunan Hari Ini":
-        df_display = df.nsmallest(20, 'Hari Ini %')
-    elif sort_by == "Kenaikan 1 Minggu":
-        df_display = df.nlargest(20, '1 Minggu %')
+    elif sort_option == "Top Gainers":
+        df_display = df.nlargest(20, 'Change %')
+    else:
+        df_display = df.nsmallest(20, 'Change %')
         
     st.divider()
     
-    # 4. TAMPILAN GRID GRAFIK (4 Kolom)
-    # Ini bagian inti visualisasinya
-    cols = st.columns(4)
+    # 4. TAMPILAN GRID
+    # Jika Candlestick, kita pakai 3 kolom biar candle-nya gak gepeng
+    n_cols = 3 if view_mode == "Intraday (1 Hari)" else 4
+    cols = st.columns(n_cols)
     
     for i, (index, row) in enumerate(df_display.iterrows()):
-        with cols[i % 4]:
-            # HEADER KECIL
-            # Menampilkan Ticker dan % 1 Minggu
-            color_1w = "green" if row['1 Minggu %'] > 0 else "red"
+        with cols[i % n_cols]:
+            # Info Header
+            color_chg = "green" if row['Change %'] > 0 else "red"
             st.markdown(f"**{row['Ticker']}** | Rp {row['Harga']:,.0f}")
-            st.markdown(f"<small>1W: <span style='color:{color_1w}'>{row['1 Minggu %']:+.2f}%</span> | Range: {row['Volatilitas']:.1f}%</small>", unsafe_allow_html=True)
             
-            # GRAFIK KHUSUS (PERSENTASE)
-            fig = plot_percentage_chart(row['Data'], row['Ticker'])
+            if view_mode == "Intraday (1 Hari)":
+                st.markdown(f"<small>Chg: <span style='color:{color_chg}'>{row['Change %']:+.2f}%</span> | Volatility: {row['Volatilitas']:.2f}%</small>", unsafe_allow_html=True)
+                # PLOT CANDLESTICK
+                fig = plot_candlestick_chart(row['Data'], row['Ticker'])
+            else:
+                st.markdown(f"<small>1W: {row['1W %']:+.2f}% | Range: {row['Volatilitas']:.1f}%</small>", unsafe_allow_html=True)
+                # PLOT PERCENTAGE LINE
+                fig = plot_percentage_chart(row['Data'], row['Ticker'])
+                
             st.plotly_chart(fig, use_container_width=True)
-            
-            st.write("") # Spacer
+            st.write("")
 
 else:
-    st.error("Gagal mengambil data. Coba refresh.")
+    st.warning("Data belum tersedia. Jika market tutup, data intraday mungkin kosong.")
