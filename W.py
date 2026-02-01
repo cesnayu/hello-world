@@ -5,93 +5,114 @@ from collections import Counter
 from datetime import datetime, timedelta
 
 # --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="Konsistensi Top Gainer", layout="wide")
+st.set_page_config(page_title="Konsistensi Top Gainer Fix", layout="wide")
 
-# --- LIST SAHAM (Harus banyak agar Top 50 valid) ---
-# Ini daftar gabungan Kompas100 + Saham Second Liner populer (+/- 150 saham)
+# --- LIST SAHAM (Kompas100 + Populer) ---
 TIKCER_LIST = [
-    "AALI.JK","ABBA.JK","ABDA.JK","ABMM.JK","ACES.JK","ACST.JK","ADES.JK","ADHI.JK","ADMF.JK","ADMG.JK","ADRO.JK","AGII.JK","AGRO.JK","AGRS.JK","AHAP.JK","AIMS.JK","AISA.JK","AKKU.JK","AKPI.JK","AKRA.JK","AKSI.JK","ALDO.JK","ALKA.JK","ALMI.JK","ALTO.JK","AMAG.JK","AMFG.JK","AMIN.JK","AMRT.JK","ANJT.JK","ANTM.JK","APEX.JK","APIC.JK","APII.JK","APLI.JK","APLN.JK","ARGO.JK","ARII.JK","ARNA.JK","ARTA.JK","ARTI.JK","ARTO.JK","ASBI.JK","ASDM.JK","ASGR.JK","ASII.JK","ASJT.JK","ASMI.JK","ASRI.JK","ASRM.JK","ASSA.JK","ATIC.JK","AUTO.JK","BABP.JK","BACA.JK","BAJA.JK","BALI.JK","BAPA.JK","BATA.JK","BAYU.JK","BBCA.JK","BBHI.JK","BBKP.JK","BBLD.JK","BBMD.JK","BBNI.JK","BBRI.JK","BBRM.JK","BBTN.JK","BBYB.JK","BCAP.JK","BCIC.JK","BCIP.JK","BDMN.JK","BEKS.JK","BEST.JK","BFIN.JK","BGTG.JK","BHIT.JK","BIKA.JK","BIMA.JK","BINA.JK","BIPI.JK","BIPP.JK","BIRD.JK","BISI.JK","BJBR.JK","BJTM.JK","BKDP.JK","BKSL.JK","BKSW.JK","BLTA.JK","BLTZ.JK","BMAS.JK","BMRI.JK","BMSR.JK","BMTR.JK","BNBA.JK","BNBR.JK","BNGA.JK","BNII.JK","BNLI.JK","BOLT.JK","BPFI.JK","BPII.JK","BRAM.JK","BRMS.JK","BRNA.JK","BRPT.JK","BSDE.JK","BSIM.JK","BSSR.JK","BSWD.JK","BTEK.JK","BTEL.JK","BTON.JK","BTPN.JK","BUDI.JK","BUKK.JK","BULL.JK","BUMI.JK","BUVA.JK","BVIC.JK","BWPT.JK","BYAN.JK","CANI.JK","CASS.JK","CEKA.JK","CENT.JK","CFIN.JK","CINT.JK","CITA.JK","CLPI.JK","CMNP.JK","CMPP.JK","CNKO.JK","CNTX.JK","COWL.JK","CPIN.JK","CPRO.JK","CSAP.JK","CTBN.JK","CTRA.JK","CTTH.JK","DART.JK","DEFI.JK","DEWA.JK","DGIK.JK","DILD.JK","DKFT.JK","DLTA.JK","DMAS.JK","DNAR.JK","DNET.JK","DOID.JK","DPNS.JK","DSFI.JK","DSNG.JK","DSSA.JK","DUTI.JK","DVLA.JK","DYAN.JK","ECII.JK","EKAD.JK","ELSA.JK","ELTY.JK","EMDE.JK","EMTK.JK","ENRG.JK","EPMT.JK","ERAA.JK","ERTX.JK","ESSA.JK","ESTI.JK","ETWA.JK","EXCL.JK","FAST.JK","FASW.JK","FISH.JK","FMII.JK","FORU.JK","FPNI.JK","GAMA.JK","GDST.JK","GDYR.JK","GEMA.JK","GEMS.JK","GGRM.JK","GIAA.JK","GJTL.JK","GLOB.JK","GMTD.JK","GOLD.JK","GOLL.JK","GPRA.JK","GSMF.JK","GTBO.JK","GWSA.JK","GZCO.JK","HADE.JK","HDFA.JK","HERO.JK","HEXA.JK","HITS.JK","HMSP.JK","HOME.JK","HOTL.JK","HRUM.JK","IATA.JK","IBFN.JK","IBST.JK","ICBP.JK","ICON.JK","IGAR.JK","IIKP.JK","IKAI.JK","IKBI.JK","IMAS.JK","IMJS.JK","IMPC.JK","INAF.JK","INAI.JK","INCI.JK","INCO.JK","INDF.JK","INDR.JK","INDS.JK","INDX.JK","INDY.JK","INKP.JK","INPC.JK","INPP.JK","INRU.JK","INTA.JK","INTD.JK","INTP.JK","IPOL.JK","ISAT.JK","ISSP.JK","ITMA.JK","ITMG.JK","JAWA.JK","JECC.JK","JIHD.JK","JKON.JK","JPFA.JK","JRPT.JK","JSMR.JK","JSPT.JK","JTPE.JK","KAEF.JK","KARW.JK","KBLI.JK","KBLM.JK","KBLV.JK","KBRI.JK","KDSI.JK","KIAS.JK","KICI.JK","KIJA.JK","KKGI.JK","KLBF.JK","KOBX.JK","KOIN.JK","KONI.JK","KOPI.JK","KPIG.JK","KRAS.JK","KREN.JK","LAPD.JK","LCGP.JK","LEAD.JK","LINK.JK","LION.JK","LMAS.JK","LMPI.JK","LMSH.JK","LPCK.JK","LPGI.JK","LPIN.JK","LPKR.JK","LPLI.JK","LPPF.JK","LPPS.JK","LRNA.JK","LSIP.JK","LTLS.JK","MAGP.JK","MAIN.JK","MAPI.JK","MAYA.JK","MBAP.JK","MBSS.JK","MBTO.JK","MCOR.JK","MDIA.JK","MDKA.JK","MDLN.JK","MDRN.JK","MEDC.JK","MEGA.JK","MERK.JK","META.JK","MFMI.JK","MGNA.JK","MICE.JK","MIDI.JK","MIKA.JK","MIRA.JK","MITI.JK","MKPI.JK","MLBI.JK","MLIA.JK","MLPL.JK","MLPT.JK","MMLP.JK","MNCN.JK","MPMX.JK","MPPA.JK","MRAT.JK","MREI.JK","MSKY.JK","MTDL.JK","MTFN.JK","MTLA.JK","MTSM.JK","MYOH.JK","MYOR.JK","MYTX.JK","NELY.JK","NIKL.JK","NIRO.JK","NISP.JK","NOBU.JK","NRCA.JK","OCAP.JK","OKAS.JK","OMRE.JK","PADI.JK","PALM.JK","PANR.JK","PANS.JK","PBRX.JK","PDES.JK","PEGE.JK","PGAS.JK","PGLI.JK","PICO.JK","PJAA.JK","PKPK.JK","PLAS.JK","PLIN.JK","PNBN.JK","PNBS.JK","PNIN.JK","PNLF.JK","PNSE.JK","POLY.JK","POOL.JK","PPRO.JK","PSAB.JK","PSDN.JK","PSKT.JK","PTBA.JK","PTIS.JK","PTPP.JK","PTRO.JK","PTSN.JK","PTSP.JK","PUDP.JK","PWON.JK","PYFA.JK","RAJA.JK","RALS.JK","RANC.JK","RBMS.JK","RDTX.JK","RELI.JK","RICY.JK","RIGS.JK","RIMO.JK","RODA.JK","ROTI.JK","RUIS.JK","SAFE.JK","SAME.JK","SCCO.JK","SCMA.JK","SCPI.JK","SDMU.JK","SDPC.JK","SDRA.JK","SGRO.JK","SHID.JK","SIDO.JK","SILO.JK","SIMA.JK","SIMP.JK","SIPD.JK","SKBM.JK","SKLT.JK","SKYB.JK","SMAR.JK","SMBR.JK","SMCB.JK","SMDM.JK","SMDR.JK","SMGR.JK","SMMA.JK","SMMT.JK","SMRA.JK","SMRU.JK","SMSM.JK","SOCI.JK","SONA.JK","SPMA.JK","SQMI.JK","SRAJ.JK","SRIL.JK","SRSN.JK","SRTG.JK","SSIA.JK","SSMS.JK","SSTM.JK","STAR.JK","STTP.JK","SUGI.JK","SULI.JK","SUPR.JK","TALF.JK","TARA.JK","TAXI.JK","TBIG.JK","TBLA.JK","TBMS.JK","TCID.JK","TELE.JK","TFCO.JK","TGKA.JK","TIFA.JK","TINS.JK","TIRA.JK","TIRT.JK","TKIM.JK","TLKM.JK","TMAS.JK","TMPO.JK","TOBA.JK","TOTL.JK","TOTO.JK","TOWR.JK","TPIA.JK","TPMA.JK","TRAM.JK","TRIL.JK","TRIM.JK","TRIO.JK","TRIS.JK","TRST.JK","TRUS.JK","TSPC.JK","ULTJ.JK","UNIC.JK","UNIT.JK","UNSP.JK","UNTR.JK","UNVR.JK","VICO.JK","VINS.JK","VIVA.JK","VOKS.JK","VRNA.JK","WAPO.JK","WEHA.JK","WICO.JK","WIIM.JK","WIKA.JK","WINS.JK","WOMF.JK","WSKT.JK","WTON.JK","YPAS.JK","YULE.JK","ZBRA.JK","SHIP.JK","CASA.JK","DAYA.JK","DPUM.JK","IDPR.JK","JGLE.JK","KINO.JK","MARI.JK","MKNT.JK","MTRA.JK","OASA.JK","POWR.JK","INCF.JK","WSBP.JK","PBSA.JK","PRDA.JK","BOGA.JK","BRIS.JK","PORT.JK","CARS.JK","MINA.JK","CLEO.JK","TAMU.JK","CSIS.JK","TGRA.JK","FIRE.JK","TOPS.JK","KMTR.JK","ARMY.JK","MAPB.JK","WOOD.JK","HRTA.JK","MABA.JK","HOKI.JK","MPOW.JK","MARK.JK","NASA.JK","MDKI.JK","BELL.JK","KIOS.JK","GMFI.JK","MTWI.JK","ZINC.JK","MCAS.JK","PPRE.JK","WEGE.JK","PSSI.JK","MORA.JK","DWGL.JK","PBID.JK","JMAS.JK","CAMP.JK","IPCM.JK","PCAR.JK","LCKM.JK","BOSS.JK","HELI.JK","JSKY.JK","INPS.JK","GHON.JK","TDPM.JK","DFAM.JK","NICK.JK","BTPS.JK","SPTO.JK","PRIM.JK","HEAL.JK","TRUK.JK","PZZA.JK","TUGU.JK","MSIN.JK","SWAT.JK","TNCA.JK","MAPA.JK","TCPI.JK","IPCC.JK","RISE.JK","BPTR.JK","POLL.JK","NFCX.JK","MGRO.JK","NUSA.JK","FILM.JK","ANDI.JK","LAND.JK","MOLI.JK","PANI.JK","DIGI.JK","CITY.JK","SAPX.JK","SURE.JK","HKMU.JK","MPRO.JK","DUCK.JK","GOOD.JK","SKRN.JK","YELO.JK","CAKK.JK","SATU.JK","SOSS.JK","DEAL.JK","POLA.JK","DIVA.JK","LUCK.JK","URBN.JK","SOTS.JK","ZONE.JK","PEHA.JK","FOOD.JK","BEEF.JK","POLI.JK","CLAY.JK","NATO.JK","JAYA.JK","COCO.JK","MTPS.JK","CPRI.JK","HRME.JK","POSA.JK","JAST.JK","FITT.JK","BOLA.JK","CCSI.JK","SFAN.JK","POLU.JK","KJEN.JK","KAYU.JK","ITIC.JK","PAMG.JK","IPTV.JK","BLUE.JK","ENVY.JK","EAST.JK","LIFE.JK","FUJI.JK","KOTA.JK","INOV.JK","ARKA.JK","SMKL.JK","HDIT.JK","KEEN.JK","BAPI.JK","TFAS.JK","GGRP.JK","OPMS.JK","NZIA.JK","SLIS.JK","PURE.JK","IRRA.JK","DMMX.JK","SINI.JK","WOWS.JK","ESIP.JK","TEBE.JK","KEJU.JK","PSGO.JK","AGAR.JK","IFSH.JK","REAL.JK","IFII.JK","PMJS.JK","UCID.JK","GLVA.JK","PGJO.JK","AMAR.JK","CSRA.JK","INDO.JK","AMOR.JK","TRIN.JK","DMND.JK","PURA.JK","PTPW.JK","TAMA.JK","IKAN.JK","SAMF.JK","SBAT.JK","KBAG.JK","CBMF.JK","RONY.JK","CSMI.JK","BBSS.JK","BHAT.JK","CASH.JK","TECH.JK","EPAC.JK","UANG.JK","PGUN.JK","SOFA.JK","PPGL.JK","TOYS.JK","SGER.JK","TRJA.JK","PNGO.JK","SCNP.JK","BBSI.JK","KMDS.JK","PURI.JK","SOHO.JK","HOMI.JK","ROCK.JK","ENZO.JK","PLAN.JK","PTDU.JK","ATAP.JK","VICI.JK","PMMP.JK","BANK.JK","WMUU.JK","EDGE.JK","UNIQ.JK","BEBS.JK","SNLK.JK","ZYRX.JK","LFLO.JK","FIMP.JK","TAPG.JK","NPGF.JK","LUCY.JK","ADCP.JK","HOPE.JK","MGLV.JK","TRUE.JK","LABA.JK","ARCI.JK","IPAC.JK","MASB.JK","BMHS.JK","FLMC.JK","NICL.JK","UVCR.JK","BUKA.JK","HAIS.JK","OILS.JK","GPSO.JK","MCOL.JK","RSGK.JK","RUNS.JK","SBMA.JK","CMNT.JK","GTSI.JK","IDEA.JK","KUAS.JK","BOBA.JK","MTEL.JK","DEPO.JK","BINO.JK","CMRY.JK","WGSH.JK","TAYS.JK","WMPP.JK","RMKE.JK","OBMD.JK","AVIA.JK","IPPE.JK","NASI.JK","BSML.JK","DRMA.JK","ADMR.JK","SEMA.JK","ASLC.JK","NETV.JK","BAUT.JK","ENAK.JK","NTBK.JK","SMKM.JK","STAA.JK","NANO.JK","BIKE.JK","WIRG.JK","SICO.JK","GOTO.JK","TLDN.JK","MTMH.JK","WINR.JK","IBOS.JK","OLIV.JK","ASHA.JK","SWID.JK","TRGU.JK","ARKO.JK","CHEM.JK","DEWI.JK","AXIO.JK","KRYA.JK","HATM.JK","RCCC.JK","GULA.JK","JARR.JK","AMMS.JK","RAFI.JK","KKES.JK","ELPI.JK","EURO.JK","KLIN.JK","TOOL.JK","BUAH.JK","CRAB.JK","MEDS.JK","COAL.JK","PRAY.JK","CBUT.JK","BELI.JK","MKTR.JK","OMED.JK","BSBK.JK","PDPP.JK","KDTN.JK","ZATA.JK","NINE.JK","MMIX.JK","PADA.JK","ISAP.JK","VTNY.JK","SOUL.JK","ELIT.JK","BEER.JK","CBPE.JK","SUNI.JK","CBRE.JK","WINE.JK","BMBL.JK","PEVE.JK","LAJU.JK","FWCT.JK","NAYZ.JK","IRSX.JK","PACK.JK","VAST.JK","CHIP.JK","HALO.JK","KING.JK","PGEO.JK","FUTR.JK","HILL.JK","BDKR.JK","PTMP.JK","SAGE.JK","TRON.JK","CUAN.JK","NSSS.JK","GTRA.JK","HAJJ.JK","JATI.JK","TYRE.JK","MPXL.JK","SMIL.JK","KLAS.JK","MAXI.JK","VKTR.JK","RELF.JK","AMMN.JK","CRSN.JK","GRPM.JK","WIDI.JK","TGUK.JK","INET.JK","MAHA.JK","RMKO.JK","CNMA.JK","FOLK.JK","HBAT.JK","GRIA.JK","PPRI.JK","ERAL.JK","CYBR.JK","MUTU.JK","LMAX.JK","HUMI.JK","MSIE.JK","RSCH.JK","BABY.JK","AEGS.JK","IOTF.JK","KOCI.JK","PTPS.JK","BREN.JK","STRK.JK","KOKA.JK","LOPI.JK","UDNG.JK","RGAS.JK","MSTI.JK","IKPM.JK","AYAM.JK","SURI.JK","ASLI.JK","GRPH.JK","SMGA.JK","UNTD.JK","TOSK.JK","MPIX.JK","ALII.JK","MKAP.JK","MEJA.JK","LIVE.JK","HYGN.JK","BAIK.JK","VISI.JK","AREA.JK","MHKI.JK","ATLA.JK","DATA.JK","SOLA.JK","BATR.JK","SPRE.JK","PART.JK","GOLF.JK","ISEA.JK","BLES.JK","GUNA.JK","LABS.JK","DOSS.JK","NEST.JK","PTMR.JK","VERN.JK","DAAZ.JK","BOAT.JK","NAIK.JK","AADI.JK","MDIY.JK","KSIX.JK","RATU.JK","YOII.JK","HGII.JK","BRRC.JK","DGWG.JK","CBDK.JK","OBAT.JK","MINE.JK","ASPR.JK","PSAT.JK","COIN.JK","CDIA.JK","BLOG.JK","MERI.JK","CHEK.JK","PMUI.JK","EMAS.JK","PJHB.JK","KAQI.JK","YUPI.JK","FORE.JK","MDLA.JK","DKHH.JK","AYLS.JK","DADA.JK","ASPI.JK","ESTA.JK","BESS.JK","AMAN.JK","CARE.JK","PIPA.JK","NCKL.JK","MENN.JK","AWAN.JK","MBMA.JK","RAAM.JK","DOOH.JK","CGAS.JK","NICE.JK","MSJA.JK","SMLE.JK","ACRO.JK","MANG.JK","WIFI.JK","FAPA.JK","DCII.JK","KETR.JK","DGNS.JK","UFOE.JK",
-    # Tambah sampai 100 ticker
+    'BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'BBNI.JK', 'TLKM.JK', 'ASII.JK', 'UNVR.JK', 'ICBP.JK', 'INDF.JK', 'KLBF.JK',
+    'CPIN.JK', 'ADRO.JK', 'PTBA.JK', 'ANTM.JK', 'INCO.JK', 'ITMG.JK', 'SMGR.JK', 'INTP.JK', 'WIKA.JK', 'WSKT.JK',
+    'PTPP.JK', 'JSMR.JK', 'PGAS.JK', 'ELSA.JK', 'EXCL.JK', 'ISAT.JK', 'BSDE.JK', 'PWON.JK', 'CTRA.JK', 'SMRA.JK',
+    'MNCN.JK', 'SCMA.JK', 'GGRM.JK', 'HMSP.JK', 'WIIM.JK', 'TOWR.JK', 'TBIG.JK', 'ESSA.JK', 'MAPI.JK', 'ERAA.JK',
+    'MDKA.JK', 'AMRT.JK', 'ACES.JK', 'BUKA.JK', 'GOTO.JK', 'EMTK.JK', 'BRPT.JK', 'AKRA.JK', 'UNTR.JK', 'MEDC.JK',
+    'HRUM.JK', 'TPIA.JK', 'INKP.JK', 'TKIM.JK', 'JPFA.JK', 'MYOR.JK', 'BUMI.JK', 'ENRG.JK', 'DEWA.JK', 'BRMS.JK',
+    'ARTO.JK', 'BRIS.JK', 'AGRO.JK', 'BBHI.JK', 'BBYB.JK', 'PNBN.JK', 'BDMN.JK', 'BNGA.JK', 'NISP.JK', 'BJBR.JK',
+    'SSIA.JK', 'BEST.JK', 'DMAS.JK', 'KIJA.JK', 'AUTO.JK', 'GJTL.JK', 'IMAS.JK', 'SMSM.JK', 'KAEF.JK', 'IRRA.JK',
+    'SILO.JK', 'MIKA.JK', 'HEAL.JK', 'SAME.JK', 'FILM.JK', 'MBMA.JK', 'NCKL.JK', 'TRIM.JK', 'DOID.JK',
+    'INDY.JK', 'ABMM.JK', 'KKGI.JK', 'TOBA.JK', 'HILL.JK', 'CUAN.JK', 'BREN.JK', 'AMMN.JK', 'PANI.JK', 'MAPA.JK',
+    'ULTJ.JK', 'CMRY.JK', 'STAA.JK', 'TAPG.JK', 'DSNG.JK', 'AALI.JK', 'LSIP.JK', 'SIMP.JK', 'SSMS.JK', 'TBLA.JK',
+    'AVIA.JK', 'MARK.JK', 'WOOD.JK', 'FREN.JK', 'TLDN.JK', 'DRMA.JK', 'RAJA.JK', 'APLN.JK', 'ASRI.JK', 'LPKR.JK',
+    'LPPF.JK', 'RALS.JK', 'MPPA.JK', 'AMAR.JK', 'BABP.JK', 'BCIC.JK', 'BEKS.JK', 'BGTG.JK', 'BINA.JK', 'BMAS.JK'
 ]
 
 @st.cache_data(ttl=600)
 def analyze_top_gainers(tickers):
-    # 1. Download Data (Close Price) untuk 10 hari (biar aman dapet 5 hari bursa)
-    data = yf.download(" ".join(tickers), period="1mo", group_by='ticker', threads=True, progress=False)
+    # 1. Download Data
+    # Kita gunakan threads=False kadang lebih stabil di cloud gratisan untuk batch besar
+    try:
+        data = yf.download(" ".join(tickers), period="1mo", group_by='ticker', threads=True, progress=False)
+    except Exception as e:
+        return None, f"Gagal download data: {str(e)}"
+
+    if data.empty:
+        return None, "Data kosong dari Yahoo Finance. Coba refresh."
     
-    # Ambil Harga Close saja
-    # Struktur yf.download sekarang agak tricky, kita pastikan ambil Close
+    # 2. Parsing Struktur Data (MultiIndex Handling)
     close_prices = pd.DataFrame()
+    
+    # Ambil kolom Close dengan aman
     for t in tickers:
         try:
-            # Cek struktur multi-index atau single
-            if len(tickers) > 1:
-                if t in data.columns.levels[0]:
-                    close_prices[t] = data[t]['Close']
+            # Cek apakah ticker ada di kolom level atas
+            if isinstance(data.columns, pd.MultiIndex) and t in data.columns.levels[0]:
+                series = data[t]['Close']
+            elif not isinstance(data.columns, pd.MultiIndex):
+                # Kasus jika cuma 1 saham (jarang terjadi di sini tapi buat jaga2)
+                series = data['Close']
             else:
-                close_prices[t] = data['Close']
-        except: continue
-        
-    # Hapus baris yang kosong semua
+                continue
+                
+            # Bersihkan data kosong
+            series = series.dropna()
+            if not series.empty:
+                close_prices[t] = series
+        except: 
+            continue
+            
+    # Hapus baris (tanggal) yang kosong semua
     close_prices.dropna(how='all', inplace=True)
     
-    # Ambil 6 hari terakhir (untuk menghitung 5 hari perubahan)
-    if len(close_prices) < 6:
-        return None, "Data pasar tidak cukup (kurang dari 6 hari bursa)."
+    # Cek kecukupan data
+    if close_prices.empty or len(close_prices) < 6:
+        return None, "Data pasar tidak cukup (kurang dari 6 hari bursa) atau gagal parsing."
         
     last_6_days = close_prices.tail(6)
     
-    # 2. Hitung Persentase Perubahan Harian
-    # pct_change() menghitung perubahan dari baris sebelumnya
+    # 3. Hitung Persentase
     daily_returns = last_6_days.pct_change().dropna() * 100
-    # daily_returns sekarang isinya 5 baris terakhir (Hari 1 s/d Hari 5)
     
-    # 3. Cari Top 50 Per Hari & Hitung Frekuensi
+    if daily_returns.empty:
+        return None, "Gagal menghitung return harian."
+
+    # 4. Cari Top 50 Per Hari
     top_50_occurrences = []
-    
-    # List tanggal untuk header
     dates = [d.strftime('%d %b') for d in daily_returns.index]
     
-    # Loop setiap hari (baris)
     for date in daily_returns.index:
-        # Ambil return hari itu, urutkan descending (tertinggi)
         day_ret = daily_returns.loc[date].sort_values(ascending=False)
-        # Ambil Top 50 ticker
         top_50_today = day_ret.head(50).index.tolist()
-        # Masukkan ke list besar untuk dihitung nanti
         top_50_occurrences.extend(top_50_today)
         
-    # 4. Hitung Berapa Kali Muncul (Frequency)
+    # 5. Hitung Frekuensi & Return Akhir
     counter = Counter(top_50_occurrences)
-    
-    # 5. Susun Data Akhir
     final_results = []
-    
-    # Ambil saham yang setidaknya muncul 1x di Top 50
     unique_tickers = list(counter.keys())
     
     for t in unique_tickers:
-        freq = counter[t]
+        try:
+            freq = counter[t]
+            price_end = last_6_days[t].iloc[-1]
+            price_start = last_6_days[t].iloc[0]
+            total_ret_5d = ((price_end - price_start) / price_start) * 100
+            
+            final_results.append({
+                'Ticker': t.replace('.JK', ''),
+                'Harga': price_end,
+                'Frekuensi Masuk Top 50': freq,
+                'Total Gainer 5 Hari (%)': total_ret_5d,
+                'Avg Daily Return': daily_returns[t].mean()
+            })
+        except: continue
         
-        # Hitung Total Return 5 Hari (Compounding atau Simple Growth dari H-5 ke H-0)
-        # Rumus: (Harga Akhir - Harga Awal) / Harga Awal
-        price_end = last_6_days[t].iloc[-1]
-        price_start = last_6_days[t].iloc[0] # Harga H-6 (sebelum hari pertama perhitungan)
-        
-        total_ret_5d = ((price_end - price_start) / price_start) * 100
-        
-        final_results.append({
-            'Ticker': t.replace('.JK', ''),
-            'Harga': price_end,
-            'Frekuensi Masuk Top 50': freq, # Berapa kali masuk list
-            'Total Gainer 5 Hari (%)': total_ret_5d,
-            'Avg Daily Return': daily_returns[t].mean() # Rata-rata kenaikan harian
-        })
-        
+    # --- BAGIAN PERBAIKAN ERROR KEYERROR ---
+    if not final_results:
+        return None, "Tidak ada saham yang memenuhi kriteria (List kosong)."
+
     df_res = pd.DataFrame(final_results)
     
-    # Urutkan berdasarkan Frekuensi dulu, baru Total Return
-    df_res = df_res.sort_values(by=['Frekuensi Masuk Top 50', 'Total Gainer 5 Hari (%)'], ascending=[False, False])
+    # Pastikan kolom ada sebelum sort
+    required_cols = ['Frekuensi Masuk Top 50', 'Total Gainer 5 Hari (%)']
+    if all(col in df_res.columns for col in required_cols):
+        df_res = df_res.sort_values(by=required_cols, ascending=[False, False])
     
     return df_res, dates
 
@@ -99,39 +120,34 @@ def analyze_top_gainers(tickers):
 st.title("🏆 Konsistensi Top Gainer (5 Hari Terakhir)")
 st.markdown("""
 Dashboard ini mencari saham yang **paling sering masuk ke daftar 'Top 50 Gainer Harian'** selama 5 hari perdagangan terakhir.
-* **Maksud kolom kanan:** Jika angkanya **5**, berarti saham tersebut **selalu** masuk Top 50 Gainer setiap hari selama seminggu ini (Sangat Strong Uptrend).
-* **Saham yang discan:** +/- 150 Saham (Kompas100 + Second Liner Populer).
 """)
 
 if st.button("🔄 Scan Market"):
-    with st.spinner("Menganalisa data harian..."):
-        df_result, info_dates = analyze_top_gainers(TIKCER_LIST)
+    with st.spinner("Menganalisa data harian (ini mungkin butuh waktu 10-20 detik)..."):
+        # Reset cache manual jika mau fresh (opsional)
+        # st.cache_data.clear()
+        
+        df_result, info = analyze_top_gainers(TIKCER_LIST)
         
     if df_result is not None:
-        st.success(f"Analisa dari tanggal: {info_dates[0]} s/d {info_dates[-1]}")
+        if isinstance(info, list):
+            st.success(f"Analisa Periode: {info[0]} s/d {info[-1]}")
+        else:
+            st.success("Data berhasil diambil.")
         
-        # Konfigurasi Kolom
         col_config = {
             "Ticker": st.column_config.TextColumn("Saham"),
             "Harga": st.column_config.NumberColumn("Harga", format="Rp %d"),
             "Frekuensi Masuk Top 50": st.column_config.ProgressColumn(
                 "Konsistensi (x)",
-                help="Berapa kali saham ini masuk Top 50 Gainer dalam 5 hari terakhir",
                 format="%d kali",
                 min_value=0,
-                max_value=5, # Maksimal 5 hari
+                max_value=5,
             ),
-            "Total Gainer 5 Hari (%)": st.column_config.NumberColumn(
-                "Total Return 5 Hari",
-                format="%.2f%%"
-            ),
-            "Avg Daily Return": st.column_config.NumberColumn(
-                "Rata2 Harian",
-                format="%.2f%%"
-            )
+            "Total Gainer 5 Hari (%)": st.column_config.NumberColumn("Total Return 5 Hari", format="%.2f%%"),
+            "Avg Daily Return": st.column_config.NumberColumn("Rata2 Harian", format="%.2f%%")
         }
         
-        # Tampilkan Data
         st.dataframe(
             df_result,
             hide_index=True,
@@ -140,15 +156,14 @@ if st.button("🔄 Scan Market"):
             height=600
         )
         
-        # Highlight Top Picks
         st.divider()
         st.subheader("🔥 Saham Paling Konsisten (Muncul >= 3 kali)")
         top_picks = df_result[df_result['Frekuensi Masuk Top 50'] >= 3]
         if not top_picks.empty:
-            st.write(f"Ada {len(top_picks)} saham yang sangat konsisten naik:")
+            st.write(f"Ditemukan {len(top_picks)} saham konsisten:")
             st.write(", ".join(top_picks['Ticker'].tolist()))
         else:
-            st.write("Tidak ada saham yang masuk Top 50 lebih dari 2 kali minggu ini (Pasar mungkin sedang choppy/bergantian).")
+            st.write("Pasar sedang fluktuatif, tidak ada saham yang mendominasi top gainer > 2 hari berturut-turut.")
             
     else:
-        st.error(info_dates)
+        st.error(f"Terjadi kesalahan: {info}")
