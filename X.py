@@ -47,7 +47,6 @@ if 'grid_page' not in st.session_state:
     st.session_state.grid_page = 1
 
 # --- 4. DATA STATIC ---
-# List lengkap 100+ Saham (Sudah dirapikan)
 GRID_TICKERS = [
     "AALI.JK","ACES.JK","ADHI.JK","ADRO.JK","AKRA.JK","AMRT.JK","ANTM.JK","APLN.JK","ARTO.JK","ASII.JK","ASRI.JK","AUTO.JK",
     "BBCA.JK","BBKP.JK","BBNI.JK","BBRI.JK","BBTN.JK","BDMN.JK","BEST.JK","BFIN.JK","BIRD.JK","BJBR.JK","BJTM.JK","BMRI.JK",
@@ -64,7 +63,7 @@ GRID_TICKERS = [
 SAMPLE_SCREENER_TICKERS = GRID_TICKERS
 DEFAULT_INPUT_TXT = "BBCA.JK\nBBRI.JK\nGOTO.JK\nADRO.JK"
 
-# --- 5. FUNGSI LOGIKA (BACKEND - FIXED INDENTATION) ---
+# --- 5. FUNGSI LOGIKA (BACKEND) ---
 
 @st.cache_data(ttl=600)
 def get_stock_history_bulk(tickers, period="3mo", interval="1d"):
@@ -455,14 +454,13 @@ st.title("📈 Super Stock Dashboard")
 st.sidebar.title("Menu Navigasi")
 menu = st.sidebar.radio(
     "Pilih Fitur:",
-    ["📊 Grid Overview", "⚖️ Bandingkan", "🔊 Analisa Volume", "⭐ Watchlist", "🔎 Detail Saham", "🔄 Cycle Analysis", "💎 Fundamental", "🚀 Performa", "🎲 Win/Loss Stats"]
+    ["📊 Grid Overview", "⚖️ Bandingkan", "🔊 Analisa Volume", "⭐ Watchlist", "🔎 Detail Saham", "🔄 Cycle Analysis", "💎 Fundamental", "🚀 Performa", "🎲 Win/Loss Stats", "🔎 Multi-Chart"]
 )
 
-# === PAGE 1: GRID (TOTAL REWORK) ===
+# === PAGE 1: GRID ===
 if menu == "📊 Grid Overview":
     st.header("📊 Grid Overview")
     
-    # 1. FILTER
     with st.expander("🔍 Filter Grid (Harga & Volume)", expanded=False):
         c1, c2, c3, c4 = st.columns(4)
         with c1: min_p = st.number_input("Min Harga (Rp)", value=0, step=50)
@@ -486,7 +484,6 @@ if menu == "📊 Grid Overview":
             final_tickers = filtered_list
             st.success(f"Ditemukan {len(final_tickers)} saham sesuai filter.")
 
-    # 2. CONTROLS (TIMEFRAME & PAGINATION)
     col_tf, col_nav = st.columns([3, 2])
     with col_tf:
         period_label = st.selectbox("Timeframe:", ["1 Hari", "5 Hari", "1 Bulan", "3 Bulan", "6 Bulan", "1 Tahun", "YTD"], index=3)
@@ -512,7 +509,6 @@ if menu == "📊 Grid Overview":
         with c_txt:
             st.write(f"Hal {st.session_state.grid_page} dari {total_pages}")
 
-    # 3. DISPLAY GRID
     if final_tickers:
         start = (st.session_state.grid_page - 1) * items_per_page
         end = start + items_per_page
@@ -598,7 +594,6 @@ elif menu == "⚖️ Bandingkan":
 # === PAGE 3: VOLUME ===
 elif menu == "🔊 Analisa Volume":
     st.header("Analisis Volume")
-    st.write("Cari volume saham spesifik atau lihat Top 20 dari saham-saham populer.")
     
     default_text = ", ".join(st.session_state.vol_saved_tickers)
     
@@ -838,7 +833,7 @@ elif menu == "🚀 Performa":
 elif menu == "🎲 Win/Loss Stats":
     st.title("🎲 Analisa Win/Loss & Simulator")
     
-    # Sub-tabs untuk memisahkan fitur
+    # Sub-tabs
     wl_tab1, wl_tab2 = st.tabs(["📅 Probabilitas Harian (30 Hari)", "⚙️ Advanced Simulator (Backtest)"])
     
     # --- SUB-TAB 1: PROBABILITAS HARIAN ---
@@ -929,7 +924,6 @@ elif menu == "🎲 Win/Loss Stats":
                             hist = data.dropna()
                         
                         if len(hist) > 0:
-                            # Harga Awal (Open hari pertama) vs Harga Akhir (Close terakhir)
                             start_price = hist['Open'].iloc[0]
                             end_price = hist['Close'].iloc[-1]
                             change_pct = ((end_price - start_price) / start_price) * 100
@@ -955,7 +949,6 @@ elif menu == "🎲 Win/Loss Stats":
             results = st.session_state['sim_results']
             df_sim = pd.DataFrame(results)
             
-            # Summary Metrics
             total_trades = len(df_sim)
             wins = len(df_sim[df_sim['Status'] == 'WIN'])
             win_rate = (wins / total_trades) * 100 if total_trades > 0 else 0
@@ -987,7 +980,6 @@ elif menu == "🎲 Win/Loss Stats":
                 disabled=['Ticker', 'End Price', 'Return (%)', 'Est. Profit (Rp)', 'Status']
             )
             
-            # Add to Watchlist Logic
             selected_rows = edited_df[edited_df['Add'] == True]
             if not selected_rows.empty:
                 new_watch_items = [t + ".JK" for t in selected_rows['Ticker'].tolist()]
@@ -1018,3 +1010,79 @@ elif menu == "🎲 Win/Loss Stats":
             
             fig_sim.update_layout(height=400, hovermode="x unified", yaxis=dict(ticksuffix=y_suffix, gridcolor='#eee'), xaxis=dict(showgrid=False), margin=dict(l=0, r=0, t=30, b=0))
             st.plotly_chart(fig_sim, use_container_width=True)
+
+# === PAGE 10: MULTI CHART (NEW) ===
+elif menu == "🔎 Multi-Chart":
+    st.header("🔎 Analisa Grafik Multi-Saham")
+    
+    col_mc1, col_mc2, col_mc3 = st.columns([3, 1, 1])
+    with col_mc1:
+        def_mc = "BBCA, ADRO, GOTO, TLKM"
+        mc_input = st.text_input("Masukkan Kode Saham (Pisahkan koma, tanpa .JK):", value=def_mc)
+    with col_mc2:
+        mc_tf = st.selectbox("Rentang Waktu:", ["1 Hari", "1 Minggu", "1 Bulan", "3 Bulan", "6 Bulan", "1 Tahun"], index=2)
+    with col_mc3:
+        run_mc = st.button("Tampilkan Grafik")
+
+    if run_mc or mc_input:
+        tf_map = {
+            "1 Hari":   {"p": "1d", "i": "15m"}, 
+            "1 Minggu": {"p": "5d",  "i": "60m"}, 
+            "1 Bulan":  {"p": "1mo", "i": "1d"},
+            "3 Bulan":  {"p": "3mo", "i": "1d"},
+            "6 Bulan":  {"p": "6mo", "i": "1d"},
+            "1 Tahun":  {"p": "1y",  "i": "1d"},
+        }
+        params = tf_map[mc_tf]
+        
+        raw_tickers = [x.strip().upper() for x in mc_input.split(',')]
+        clean_tickers = [t + ".JK" if not t.endswith(".JK") else t for t in raw_tickers if t]
+        
+        if clean_tickers:
+            with st.spinner(f"Mengambil data {mc_tf} untuk {len(clean_tickers)} saham..."):
+                try:
+                    data = yf.download(" ".join(clean_tickers), period=params['p'], interval=params['i'], group_by='ticker', progress=False)
+                except Exception as e:
+                    st.error(f"Gagal mengambil data: {e}")
+                    data = pd.DataFrame()
+
+            for ticker in clean_tickers:
+                try:
+                    if len(clean_tickers) > 1:
+                        if ticker not in data.columns.levels[0]: continue
+                        df = data[ticker].dropna()
+                    else:
+                        df = data.dropna()
+                    
+                    if len(df) > 0:
+                        jkt_tz = pytz.timezone('Asia/Jakarta')
+                        if df.index.tz is None: df.index = df.index.tz_localize('UTC')
+                        df.index = df.index.tz_convert(jkt_tz)
+                        
+                        df['MA20'] = df['Close'].rolling(window=20).mean()
+                        
+                        fig = go.Figure()
+                        fig.add_trace(go.Candlestick(
+                            x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
+                            increasing_line_color='#00C805', decreasing_line_color='#FF3B30', name='Harga'
+                        ))
+                        fig.add_trace(go.Scatter(
+                            x=df.index, y=df['MA20'], mode='lines', 
+                            line=dict(color='#FFA500', width=1.5), name='MA 20'
+                        ))
+                        
+                        curr_price = df['Close'].iloc[-1]
+                        chg_pct = ((curr_price - df['Open'].iloc[0]) / df['Open'].iloc[0]) * 100
+                        
+                        fig.update_layout(
+                            title=dict(text=f"<b>{ticker.replace('.JK','')}</b> : Rp {curr_price:,.0f} ({chg_pct:+.2f}%)", x=0, font=dict(size=16)),
+                            height=350, xaxis_rangeslider_visible=False, hovermode="x unified",
+                            margin=dict(l=10, r=10, t=40, b=10),
+                            yaxis=dict(showgrid=True, gridcolor='#eee'),
+                            xaxis=dict(showgrid=False, type='date', tickformat='%H:%M' if mc_tf in ["1 Hari", "1 Minggu"] else '%d %b')
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                        st.divider()
+                except Exception as e: continue
+        else:
+            st.warning("Masukkan setidaknya satu kode saham.")
