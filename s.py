@@ -921,3 +921,182 @@ elif menu == "🎲 Win/Loss Stats":
                     html_code += f"<div class='day-box' style='background-color: {color};'><div class='day-date'>{date_str}</div><div class='day-val'>{val_str}</div></div>"
                 html_code += "</div>"
                 st.markdown(html_code, unsafe_allow_html=True)
+# ==========================================
+# TAB 6: ADVANCED WIN RATE SIMULATOR
+# ==========================================
+with tab6:
+    st.subheader("🎲 Advanced Win Rate & Backtest Simulator")
+    
+    # --- 1. KONTROL INPUT ---
+    col_sim1, col_sim2, col_sim3 = st.columns([2, 1, 1])
+    
+    with col_sim1:
+        # Default tickers
+        def_sim = "BBCA.JK, BBRI.JK, BMRI.JK, ADRO.JK, GOTO.JK, ANTM.JK"
+        sim_tickers_input = st.text_area("Daftar Saham (Pisahkan koma):", value=def_sim, height=100)
+    
+    with col_sim2:
+        sim_period = st.selectbox("Rentang Waktu:", ["1 Minggu", "1 Bulan", "3 Bulan"], index=1)
+        # Mapping periode ke yfinance
+        period_map = {"1 Minggu": "5d", "1 Bulan": "1mo", "3 Bulan": "3mo"}
+        yf_period = period_map[sim_period]
+        
+    with col_sim3:
+        sim_lot = st.number_input("Simulasi Jumlah Lot:", min_value=1, value=100, step=10)
+        chart_type = st.radio("Tipe Grafik:", ["Return (%)", "Harga (Rp)"], horizontal=True)
+
+    # Tombol Eksekusi
+    run_sim = st.button("🚀 Jalankan Simulasi")
+
+    # --- 2. LOGIKA PROSES ---
+    if run_sim or st.session_state.get('sim_data_cached'):
+        # Gunakan cache session state agar saat tick checkbox tidak reload data dari nol
+        if run_sim:
+            with st.spinner("Mengambil data historis & menghitung probabilitas..."):
+                tickers = [x.strip().upper() for x in sim_tickers_input.split(',') if x.strip()]
+                # Tambahkan .JK jika belum ada
+                tickers = [t if t.endswith('.JK') else t + '.JK' for t in tickers]
+                
+                # Download Data
+                data = yf.download(" ".join(tickers), period=yf_period, group_by='ticker', threads=True, progress=False)
+                
+                sim_results = []
+                
+                for t in tickers:
+                    try:
+                        # Handle MultiIndex
+                        if len(tickers) > 1:
+                            if t not in data.columns.levels[0]: continue
+                            hist = data[t].dropna()
+                        else:
+                            hist = data.dropna()
+                        
+                        if len(hist) > 0:
+                            # Harga Awal (Open di hari pertama periode) vs Harga Akhir (Close terakhir)
+                            start_price = hist['Open'].iloc[0]
+                            end_price = hist['Close'].iloc[-1]
+                            
+                            # Hitung Return
+                            change_pct = ((end_price - start_price) / start_price) * 100
+                            status = "WIN" if change_pct > 0 else "LOSS"
+                            
+                            # Hitung Estimasi Profit (Rupiah)
+                            # Rumus: (Harga Akhir - Harga Awal) * Jumlah Lot * 100 lembar
+                            profit_rp = (end_price - start_price) * sim_lot * 100
+                            
+                            sim_results.append({
+                                'Add': False, # Checkbox Watchlist
+                                'Ticker': t.replace('.JK', ''),
+                                'Start Price': start_price,
+                                'End Price': end_price,
+                                'Return (%)': change_pct,
+                                'Est. Profit (Rp)': profit_rp,
+                                'Status': status,
+                                'Data': hist # Simpan data untuk grafik
+                            })
+                    except: continue
+                
+                # Simpan ke session state
+                st.session_state['sim_results'] = sim_results
+                st.session_state['sim_data_cached'] = True
+
+        # --- 3. TAMPILKAN HASIL ---
+        if 'sim_results' in st.session_state and st.session_state['sim_results']:
+            results = st.session_state['sim_results']
+            df_sim = pd.DataFrame(results)
+            
+            # A. METRIK RINGKASAN (SUMMARY)
+            total_trades = len(df_sim)
+            wins = len(df_sim[df_sim['Status'] == 'WIN'])
+            win_rate = (wins / total_trades) * 100 if total_trades > 0 else 0
+            total_pnl = df_sim['Est. Profit (Rp)'].sum()
+            
+            st.divider()
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Win Rate", f"{win_rate:.1f}%", f"{wins}/{total_trades} Win")
+            m2.metric("Total Estimasi PnL", f"Rp {total_pnl:,.0f}", help=f"Asumsi {sim_lot} Lot per saham")
+            m3.metric("Periode Analisa", sim_period)
+            
+            # B. TABEL INTERAKTIF (EDITABLE)
+            st.write("### 📋 Detail Performa")
+            st.caption("Centang kolom **Add** untuk memasukkan ke Watchlist. Kamu bisa edit **Start Price** (belum implementasi re-calc realtime di tabel ini, refresh button diperlukan).")
+            
+            # Config Kolom
+            col_cfg = {
+                "Add": st.column_config.CheckboxColumn("Add to Watchlist", default=False),
+                "Ticker": st.column_config.TextColumn("Saham", disabled=True),
+                "Start Price": st.column_config.NumberColumn("Harga Awal", format="Rp %d"),
+                "End Price": st.column_config.NumberColumn("Harga Akhir", format="Rp %d"),
+                "Return (%)": st.column_config.NumberColumn("Return", format="%.2f%%"),
+                "Est. Profit (Rp)": st.column_config.NumberColumn("Profit/Loss", format="Rp %d"),
+                "Status": st.column_config.TextColumn("Status"),
+            }
+            
+            # Tampilkan Editor
+            edited_df = st.data_editor(
+                df_sim[['Add', 'Ticker', 'Start Price', 'End Price', 'Return (%)', 'Est. Profit (Rp)', 'Status']],
+                column_config=col_cfg,
+                hide_index=True,
+                use_container_width=True,
+                disabled=['Ticker', 'End Price', 'Return (%)', 'Est. Profit (Rp)', 'Status']
+            )
+            
+            # C. LOGIKA WATCHLIST
+            # Cek saham mana yang dicentang
+            selected_rows = edited_df[edited_df['Add'] == True]
+            if not selected_rows.empty:
+                new_watch_items = [t + ".JK" for t in selected_rows['Ticker'].tolist()]
+                # Gabung dengan watchlist yg sudah ada (hindari duplikat)
+                current_wl = st.session_state.get('user_watchlist', [])
+                updated_wl = list(set(current_wl + new_watch_items))
+                st.session_state['user_watchlist'] = updated_wl
+                st.success(f"✅ {len(new_watch_items)} saham ditambahkan ke Watchlist (Tab 4)!")
+
+            # D. GRAFIK PERFORMA
+            st.write(f"### 📈 Grafik Pergerakan ({chart_type})")
+            
+            # Kita buat grafik gabungan semua saham
+            fig_sim = go.Figure()
+            
+            for item in results:
+                hist_data = item['Data']
+                ticker_name = item['Ticker']
+                
+                # Normalisasi data untuk grafik
+                if chart_type == "Return (%)":
+                    # Grafik Persentase (Mulai dari 0%)
+                    start_val = hist_data['Close'].iloc[0]
+                    y_data = ((hist_data['Close'] - start_val) / start_val) * 100
+                    hover_temp = "<b>%{x|%d %b}</b><br>Return: %{y:.2f}%"
+                    y_suffix = "%"
+                else:
+                    # Grafik Harga Asli
+                    y_data = hist_data['Close']
+                    hover_temp = "<b>%{x|%d %b}</b><br>Harga: Rp %{y:,.0f}"
+                    y_suffix = ""
+
+                # Warna dinamis: Hijau jika untung di akhir, Merah jika rugi
+                line_color = '#00C805' if item['Return (%)'] > 0 else '#FF3B30'
+                
+                fig_sim.add_trace(go.Scatter(
+                    x=hist_data.index,
+                    y=y_data,
+                    mode='lines',
+                    name=ticker_name,
+                    line=dict(width=2),
+                    hovertemplate=hover_temp
+                ))
+            
+            fig_sim.update_layout(
+                height=400,
+                hovermode="x unified",
+                yaxis=dict(ticksuffix=y_suffix, gridcolor='#eee'),
+                xaxis=dict(showgrid=False),
+                margin=dict(l=0, r=0, t=30, b=0),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            
+            st.plotly_chart(fig_sim, use_container_width=True)
+            
+        else:
+            st.warning("Data tidak ditemukan.")
