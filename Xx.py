@@ -1,5 +1,7 @@
+
 # @title 1. Install Library (Jalankan ini dulu jika belum install)
-!pip install yfinance matplotlib pandas
+!
+pip install yfinance matplotlib pandas
 
 # @title 2. Run Chart Generator (Top 100 IHSG)
 import yfinance as yf
