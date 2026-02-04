@@ -472,8 +472,8 @@ def create_detail_chart(df, ticker, df_fin_filtered):
 # --- 7. MAIN UI ---
 st.title("📈 Super Stock Dashboard")
 
-tab_grid, tab_compare, tab_vol, tab_watch, tab_detail, tab_cycle, tab_fund, tab_perf, tab_win = st.tabs([
-    "📊 Grid", "⚖️ Bandingkan", "🔊 Volume", "⭐ Watchlist", "🔎 Detail", "🔄 Cycle", "💎 Fundamental", "🚀 Performa", "🎲 Win/Loss Stats"
+tab_grid, tab_compare, tab_vol, tab_watch, tab_detail, tab_cycle, tab_fund, tab_perf, tab_win, tab8 = st.tabs([
+    "📊 Grid", "⚖️ Bandingkan", "🔊 Volume", "⭐ Watchlist", "🔎 Detail", "🔄 Cycle", "💎 Fundamental", "🚀 Performa", "🎲 Win/Loss Stats", "TEST"
 ])
 
 # === SIDEBAR MENU ===
@@ -1100,3 +1100,132 @@ with tab6:
             
         else:
             st.warning("Data tidak ditemukan.")
+# ==========================================
+# TAB 8: HIGH / LOW / CLOSE / MA20 ANALYSIS
+# ==========================================
+with tab8:
+    st.subheader("📉 Analisa High, Low, Close & MA20")
+    st.caption("Membandingkan rentang pergerakan harga (High-Low) dengan tren rata-rata (MA20).")
+    
+    # 1. KONTROL INPUT
+    col_hl1, col_hl2, col_hl3 = st.columns([3, 1, 1])
+    
+    with col_hl1:
+        def_hl = "BBCA, GOTO, ANTM, BBRI"
+        hl_input = st.text_input("Daftar Saham (Pisahkan koma, tanpa .JK):", value=def_hl, key="hl_in")
+        
+    with col_hl2:
+        hl_period = st.selectbox("Rentang Waktu:", 
+                                 ["5 Hari", "1 Bulan", "3 Bulan", "6 Bulan"], 
+                                 index=1, key="hl_per")
+                                 
+    with col_hl3:
+        run_hl = st.button("Tampilkan Garis", key="btn_hl")
+        
+    # 2. PROSES DATA
+    if run_hl or hl_input:
+        # Mapping Timeframe
+        # Trik: Ambil periode lebih panjang sedikit agar MA20 terhitung dari awal grafik
+        tf_logic = {
+            "5 Hari":   {"fetch": "3mo", "slice": 5},   # Ambil 3 bulan, potong 5 hari
+            "1 Bulan":  {"fetch": "3mo", "slice": 22},  # Ambil 3 bulan, potong 22 hari (1 bln bursa)
+            "3 Bulan":  {"fetch": "6mo", "slice": 66},  # Ambil 6 bulan, potong 66 hari
+            "6 Bulan":  {"fetch": "1y",  "slice": 132}, # Ambil 1 thn, potong 132 hari
+        }
+        
+        cfg = tf_logic[hl_period]
+        
+        # Bersihkan Ticker
+        raw_ticks = [x.strip().upper() for x in hl_input.split(',')]
+        clean_ticks = [t + ".JK" if not t.endswith(".JK") else t for t in raw_ticks if t]
+        
+        if clean_ticks:
+            with st.spinner("Menghitung High, Low, dan MA20..."):
+                try:
+                    # Download data lebih panjang untuk kalkulasi MA20 yang akurat
+                    data = yf.download(" ".join(clean_ticks), period=cfg['fetch'], interval="1d", group_by='ticker', threads=True, progress=False)
+                except:
+                    data = pd.DataFrame()
+            
+            # Loop per Saham
+            for ticker in clean_ticks:
+                try:
+                    # Extract Data
+                    if len(clean_ticks) > 1:
+                        if ticker not in data.columns.levels[0]: continue
+                        df = data[ticker].dropna()
+                    else:
+                        df = data.dropna()
+                    
+                    if len(df) > 20: # Minimal data harus cukup buat MA20
+                        # 1. Hitung MA20
+                        df['MA20'] = df['Close'].rolling(window=20).mean()
+                        
+                        # 2. Slice Data (Potong sesuai timeframe yg diminta user)
+                        # Kita ambil N hari terakhir saja
+                        df_view = df.tail(cfg['slice'])
+                        
+                        # Fix Timezone
+                        if df_view.index.tz is None: df_view.index = df_view.index.tz_localize('UTC')
+                        df_view.index = df_view.index.tz_convert('Asia/Jakarta')
+                        
+                        # 3. BUAT GRAFIK 4 WARNA
+                        fig = go.Figure()
+                        
+                        # A. GARIS HIGH (HIJAU)
+                        fig.add_trace(go.Scatter(
+                            x=df_view.index, y=df_view['High'],
+                            mode='lines',
+                            name='High',
+                            line=dict(color='green', width=1, dash='dot') # Hijau putus-putus dikit biar gak dominan
+                        ))
+                        
+                        # B. GARIS LOW (MERAH)
+                        fig.add_trace(go.Scatter(
+                            x=df_view.index, y=df_view['Low'],
+                            mode='lines',
+                            name='Low',
+                            line=dict(color='red', width=1, dash='dot') # Merah
+                        ))
+                        
+                        # C. GARIS CLOSE (HITAM) - User Request
+                        # Catatan: Jika mode gelap (Dark Mode), hitam mungkin susah dilihat, 
+                        # tapi saya ikuti request warnanya.
+                        fig.add_trace(go.Scatter(
+                            x=df_view.index, y=df_view['Close'],
+                            mode='lines+markers',
+                            name='Close Price',
+                            line=dict(color='black', width=3), # Hitam Tebal
+                            marker=dict(size=4)
+                        ))
+                        
+                        # D. GARIS MA20 (BIRU)
+                        fig.add_trace(go.Scatter(
+                            x=df_view.index, y=df_view['MA20'],
+                            mode='lines',
+                            name='MA 20',
+                            line=dict(color='blue', width=2) # Biru
+                        ))
+                        
+                        # Layout
+                        curr = df_view['Close'].iloc[-1]
+                        
+                        # Trik agar Background Grafik Putih (Supaya garis HITAM kelihatan jelas)
+                        fig.update_layout(
+                            title=dict(text=f"<b>{ticker.replace('.JK','')}</b> (Close: {curr:,.0f})", x=0),
+                            height=400,
+                            hovermode="x unified",
+                            template="plotly_white", # Paksa tema terang agar garis Hitam terlihat
+                            margin=dict(l=10, r=10, t=40, b=10),
+                            legend=dict(orientation="h", y=1.05, x=1, xanchor="right"),
+                            xaxis=dict(showgrid=False),
+                            yaxis=dict(showgrid=True, gridcolor='#eee')
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                        st.divider()
+                        
+                except Exception as e:
+                    continue
+        else:
+            st.warning("Masukkan kode saham.")
