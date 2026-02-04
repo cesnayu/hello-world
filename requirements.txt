@@ -3,4 +3,6 @@ yfinance
 pandas
 plotly
 xlsxwriter
+matplotlib
+
 openpyxl
