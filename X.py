@@ -47,10 +47,18 @@ if 'grid_page' not in st.session_state:
     st.session_state.grid_page = 1
 
 # --- 4. DATA STATIC ---
-GRID_TICKERS = ["AALI.JK","ABBA.JK","ABDA.JK","ABMM.JK","ACES.JK","ACST.JK","ADES.JK","ADHI.JK","ADMF.JK","ADMG.JK","ADRO.JK","AGII.JK","AGRO.JK","AGRS.JK","AHAP.JK","AIMS.JK","AISA.JK","AKKU.JK","AKPI.JK","AKRA.JK","AKSI.JK","ALDO.JK","ALKA.JK","ALMI.JK","ALTO.JK","AMAG.JK","AMFG.JK","AMIN.JK","AMRT.JK","ANJT.JK","ANTM.JK","APEX.JK","APIC.JK","APII.JK","APLI.JK","APLN.JK","ARGO.JK","ARII.JK","ARNA.JK","ARTA.JK","ARTI.JK","ARTO.JK","ASBI.JK","ASDM.JK","ASGR.JK","ASII.JK","ASJT.JK","ASMI.JK","ASRI.JK","ASRM.JK","ASSA.JK","ATIC.JK","AUTO.JK","BABP.JK","BACA.JK","BAJA.JK","BALI.JK","BAPA.JK","BATA.JK","BAYU.JK","BBCA.JK","BBHI.JK","BBKP.JK","BBLD.JK","BBMD.JK","BBNI.JK","BBRI.JK","BBRM.JK","BBTN.JK","BBYB.JK","BCAP.JK","BCIC.JK","BCIP.JK","BDMN.JK","BEKS.JK","BEST.JK","BFIN.JK","BGTG.JK","BHIT.JK","BIKA.JK","BIMA.JK","BINA.JK","BIPI.JK","BIPP.JK","BIRD.JK","BISI.JK","BJBR.JK","BJTM.JK","BKDP.JK","BKSL.JK","BKSW.JK","BLTA.JK","BLTZ.JK","BMAS.JK","BMRI.JK","BMSR.JK","BMTR.JK","BNBA.JK","BNBR.JK","BNGA.JK","BNII.JK","BNLI.JK","BOLT.JK","BPFI.JK","BPII.JK","BRAM.JK","BRMS.JK","BRNA.JK","BRPT.JK","BSDE.JK","BSIM.JK","BSSR.JK","BSWD.JK","BTEK.JK","BTEL.JK","BTON.JK","BTPN.JK","BUDI.JK","BUKK.JK","BULL.JK","BUMI.JK","BUVA.JK","BVIC.JK","BWPT.JK","BYAN.JK","CANI.JK","CASS.JK","CEKA.JK","CENT.JK","CFIN.JK","CINT.JK","CITA.JK","CLPI.JK","CMNP.JK","CMPP.JK","CNKO.JK","CNTX.JK","COWL.JK","CPIN.JK","CPRO.JK","CSAP.JK","CTBN.JK","CTRA.JK","CTTH.JK","DART.JK","DEFI.JK","DEWA.JK","DGIK.JK","DILD.JK","DKFT.JK","DLTA.JK","DMAS.JK","DNAR.JK","DNET.JK","DOID.JK","DPNS.JK","DSFI.JK","DSNG.JK","DSSA.JK","DUTI.JK","DVLA.JK","DYAN.JK","ECII.JK","EKAD.JK","ELSA.JK","ELTY.JK","EMDE.JK","EMTK.JK","ENRG.JK","EPMT.JK","ERAA.JK","ERTX.JK","ESSA.JK","ESTI.JK","ETWA.JK","EXCL.JK","FAST.JK","FASW.JK","FISH.JK","FMII.JK","FORU.JK","FPNI.JK","GAMA.JK","GDST.JK","GDYR.JK","GEMA.JK","GEMS.JK","GGRM.JK","GIAA.JK","GJTL.JK","GLOB.JK","GMTD.JK","GOLD.JK","GOLL.JK","GPRA.JK","GSMF.JK","GTBO.JK","GWSA.JK","GZCO.JK","HADE.JK","HDFA.JK","HERO.JK","HEXA.JK","HITS.JK","HMSP.JK","HOME.JK","HOTL.JK","HRUM.JK","IATA.JK","IBFN.JK","IBST.JK","ICBP.JK","ICON.JK","IGAR.JK","IIKP.JK","IKAI.JK","IKBI.JK","IMAS.JK","IMJS.JK","IMPC.JK","INAF.JK","INAI.JK","INCI.JK","INCO.JK","INDF.JK","INDR.JK","INDS.JK","INDX.JK","INDY.JK","INKP.JK","INPC.JK","INPP.JK","INRU.JK","INTA.JK","INTD.JK","INTP.JK","IPOL.JK","ISAT.JK","ISSP.JK","ITMA.JK","ITMG.JK","JAWA.JK","JECC.JK","JIHD.JK","JKON.JK","JPFA.JK","JRPT.JK","JSMR.JK","JSPT.JK","JTPE.JK","KAEF.JK","KARW.JK","KBLI.JK","KBLM.JK","KBLV.JK","KBRI.JK","KDSI.JK","KIAS.JK","KICI.JK","KIJA.JK","KKGI.JK","KLBF.JK","KOBX.JK","KOIN.JK","KONI.JK","KOPI.JK","KPIG.JK","KRAS.JK","KREN.JK","LAPD.JK","LCGP.JK","LEAD.JK","LINK.JK","LION.JK","LMAS.JK","LMPI.JK","LMSH.JK","LPCK.JK","LPGI.JK","LPIN.JK","LPKR.JK","LPLI.JK","LPPF.JK","LPPS.JK","LRNA.JK","LSIP.JK","LTLS.JK","MAGP.JK","MAIN.JK","MAPI.JK","MAYA.JK","MBAP.JK","MBSS.JK","MBTO.JK","MCOR.JK","MDIA.JK","MDKA.JK","MDLN.JK","MDRN.JK","MEDC.JK","MEGA.JK","MERK.JK","META.JK","MFMI.JK","MGNA.JK","MICE.JK","MIDI.JK","MIKA.JK","MIRA.JK","MITI.JK","MKPI.JK","MLBI.JK","MLIA.JK","MLPL.JK","MLPT.JK","MMLP.JK","MNCN.JK","MPMX.JK","MPPA.JK","MRAT.JK","MREI.JK","MSKY.JK","MTDL.JK","MTFN.JK","MTLA.JK","MTSM.JK","MYOH.JK","MYOR.JK","MYTX.JK","NELY.JK","NIKL.JK","NIRO.JK","NISP.JK","NOBU.JK","NRCA.JK","OCAP.JK","OKAS.JK","OMRE.JK","PADI.JK","PALM.JK","PANR.JK","PANS.JK","PBRX.JK","PDES.JK","PEGE.JK","PGAS.JK","PGLI.JK","PICO.JK","PJAA.JK","PKPK.JK","PLAS.JK","PLIN.JK","PNBN.JK","PNBS.JK","PNIN.JK","PNLF.JK","PNSE.JK","POLY.JK","POOL.JK","PPRO.JK","PSAB.JK","PSDN.JK","PSKT.JK","PTBA.JK","PTIS.JK","PTPP.JK","PTRO.JK","PTSN.JK","PTSP.JK","PUDP.JK","PWON.JK","PYFA.JK","RAJA.JK","RALS.JK","RANC.JK","RBMS.JK","RDTX.JK","RELI.JK","RICY.JK","RIGS.JK","RIMO.JK","RODA.JK","ROTI.JK","RUIS.JK","SAFE.JK","SAME.JK","SCCO.JK","SCMA.JK","SCPI.JK","SDMU.JK","SDPC.JK","SDRA.JK","SGRO.JK","SHID.JK","SIDO.JK","SILO.JK","SIMA.JK","SIMP.JK","SIPD.JK","SKBM.JK","SKLT.JK","SKYB.JK","SMAR.JK","SMBR.JK","SMCB.JK","SMDM.JK","SMDR.JK","SMGR.JK","SMMA.JK","SMMT.JK","SMRA.JK","SMRU.JK","SMSM.JK","SOCI.JK","SONA.JK","SPMA.JK","SQMI.JK","SRAJ.JK","SRIL.JK","SRSN.JK","SRTG.JK","SSIA.JK","SSMS.JK","SSTM.JK","STAR.JK","STTP.JK","SUGI.JK","SULI.JK","SUPR.JK","TALF.JK","TARA.JK","TAXI.JK","TBIG.JK","TBLA.JK","TBMS.JK","TCID.JK","TELE.JK","TFCO.JK","TGKA.JK","TIFA.JK","TINS.JK","TIRA.JK","TIRT.JK","TKIM.JK","TLKM.JK","TMAS.JK","TMPO.JK","TOBA.JK","TOTL.JK","TOTO.JK","TOWR.JK","TPIA.JK","TPMA.JK","TRAM.JK","TRIL.JK","TRIM.JK","TRIO.JK","TRIS.JK","TRST.JK","TRUS.JK","TSPC.JK","ULTJ.JK","UNIC.JK","UNIT.JK","UNSP.JK","UNTR.JK","UNVR.JK","VICO.JK","VINS.JK","VIVA.JK","VOKS.JK","VRNA.JK","WAPO.JK","WEHA.JK","WICO.JK","WIIM.JK","WIKA.JK","WINS.JK","WOMF.JK","WSKT.JK","WTON.JK","YPAS.JK","YULE.JK","ZBRA.JK","SHIP.JK","CASA.JK","DAYA.JK","DPUM.JK","IDPR.JK","JGLE.JK","KINO.JK","MARI.JK","MKNT.JK","MTRA.JK","OASA.JK","POWR.JK","INCF.JK","WSBP.JK","PBSA.JK","PRDA.JK","BOGA.JK","BRIS.JK","PORT.JK","CARS.JK","MINA.JK","CLEO.JK","TAMU.JK","CSIS.JK","TGRA.JK","FIRE.JK","TOPS.JK","KMTR.JK","ARMY.JK","MAPB.JK","WOOD.JK","HRTA.JK","MABA.JK","HOKI.JK","MPOW.JK","MARK.JK","NASA.JK","MDKI.JK","BELL.JK","KIOS.JK","GMFI.JK","MTWI.JK","ZINC.JK","MCAS.JK","PPRE.JK","WEGE.JK","PSSI.JK","MORA.JK","DWGL.JK","PBID.JK","JMAS.JK","CAMP.JK","IPCM.JK","PCAR.JK","LCKM.JK","BOSS.JK","HELI.JK","JSKY.JK","INPS.JK","GHON.JK","TDPM.JK","DFAM.JK","NICK.JK","BTPS.JK","SPTO.JK","PRIM.JK","HEAL.JK","TRUK.JK","PZZA.JK","TUGU.JK","MSIN.JK","SWAT.JK","TNCA.JK","MAPA.JK","TCPI.JK","IPCC.JK","RISE.JK","BPTR.JK","POLL.JK","NFCX.JK","MGRO.JK","NUSA.JK","FILM.JK","ANDI.JK","LAND.JK","MOLI.JK","PANI.JK","DIGI.JK","CITY.JK","SAPX.JK","SURE.JK","HKMU.JK","MPRO.JK","DUCK.JK","GOOD.JK","SKRN.JK","YELO.JK","CAKK.JK","SATU.JK","SOSS.JK","DEAL.JK","POLA.JK","DIVA.JK","LUCK.JK","URBN.JK","SOTS.JK","ZONE.JK","PEHA.JK","FOOD.JK","BEEF.JK","POLI.JK","CLAY.JK","NATO.JK","JAYA.JK","COCO.JK","MTPS.JK","CPRI.JK","HRME.JK","POSA.JK","JAST.JK","FITT.JK","BOLA.JK","CCSI.JK","SFAN.JK","POLU.JK","KJEN.JK","KAYU.JK","ITIC.JK","PAMG.JK","IPTV.JK","BLUE.JK","ENVY.JK","EAST.JK","LIFE.JK","FUJI.JK","KOTA.JK","INOV.JK","ARKA.JK","SMKL.JK","HDIT.JK","KEEN.JK","BAPI.JK","TFAS.JK","GGRP.JK","OPMS.JK","NZIA.JK","SLIS.JK","PURE.JK","IRRA.JK","DMMX.JK","SINI.JK","WOWS.JK","ESIP.JK","TEBE.JK","KEJU.JK","PSGO.JK","AGAR.JK","IFSH.JK","REAL.JK","IFII.JK","PMJS.JK","UCID.JK","GLVA.JK","PGJO.JK","AMAR.JK","CSRA.JK","INDO.JK","AMOR.JK","TRIN.JK","DMND.JK","PURA.JK","PTPW.JK","TAMA.JK","IKAN.JK","SAMF.JK","SBAT.JK","KBAG.JK","CBMF.JK","RONY.JK","CSMI.JK","BBSS.JK","BHAT.JK","CASH.JK","TECH.JK","EPAC.JK","UANG.JK","PGUN.JK","SOFA.JK","PPGL.JK","TOYS.JK","SGER.JK","TRJA.JK","PNGO.JK","SCNP.JK","BBSI.JK","KMDS.JK","PURI.JK","SOHO.JK","HOMI.JK","ROCK.JK","ENZO.JK","PLAN.JK","PTDU.JK","ATAP.JK","VICI.JK","PMMP.JK","BANK.JK","WMUU.JK","EDGE.JK","UNIQ.JK","BEBS.JK","SNLK.JK","ZYRX.JK","LFLO.JK","FIMP.JK","TAPG.JK","NPGF.JK","LUCY.JK","ADCP.JK","HOPE.JK","MGLV.JK","TRUE.JK","LABA.JK","ARCI.JK","IPAC.JK","MASB.JK","BMHS.JK","FLMC.JK","NICL.JK","UVCR.JK","BUKA.JK","HAIS.JK","OILS.JK","GPSO.JK","MCOL.JK","RSGK.JK","RUNS.JK","SBMA.JK","CMNT.JK","GTSI.JK","IDEA.JK","KUAS.JK","BOBA.JK","MTEL.JK","DEPO.JK","BINO.JK","CMRY.JK","WGSH.JK","TAYS.JK","WMPP.JK","RMKE.JK","OBMD.JK","AVIA.JK","IPPE.JK","NASI.JK","BSML.JK","DRMA.JK","ADMR.JK","SEMA.JK","ASLC.JK","NETV.JK","BAUT.JK","ENAK.JK","NTBK.JK","SMKM.JK","STAA.JK","NANO.JK","BIKE.JK","WIRG.JK","SICO.JK","GOTO.JK","TLDN.JK","MTMH.JK","WINR.JK","IBOS.JK","OLIV.JK","ASHA.JK","SWID.JK","TRGU.JK","ARKO.JK","CHEM.JK","DEWI.JK","AXIO.JK","KRYA.JK","HATM.JK","RCCC.JK","GULA.JK","JARR.JK","AMMS.JK","RAFI.JK","KKES.JK","ELPI.JK","EURO.JK","KLIN.JK","TOOL.JK","BUAH.JK","CRAB.JK","MEDS.JK","COAL.JK","PRAY.JK","CBUT.JK","BELI.JK","MKTR.JK","OMED.JK","BSBK.JK","PDPP.JK","KDTN.JK","ZATA.JK","NINE.JK","MMIX.JK","PADA.JK","ISAP.JK","VTNY.JK","SOUL.JK","ELIT.JK","BEER.JK","CBPE.JK","SUNI.JK","CBRE.JK","WINE.JK","BMBL.JK","PEVE.JK","LAJU.JK","FWCT.JK","NAYZ.JK","IRSX.JK","PACK.JK","VAST.JK","CHIP.JK","HALO.JK","KING.JK","PGEO.JK","FUTR.JK","HILL.JK","BDKR.JK","PTMP.JK","SAGE.JK","TRON.JK","CUAN.JK","NSSS.JK","GTRA.JK","HAJJ.JK","JATI.JK","TYRE.JK","MPXL.JK","SMIL.JK","KLAS.JK","MAXI.JK","VKTR.JK","RELF.JK","AMMN.JK","CRSN.JK","GRPM.JK","WIDI.JK","TGUK.JK","INET.JK","MAHA.JK","RMKO.JK","CNMA.JK","FOLK.JK","HBAT.JK","GRIA.JK","PPRI.JK","ERAL.JK","CYBR.JK","MUTU.JK","LMAX.JK","HUMI.JK","MSIE.JK","RSCH.JK","BABY.JK","AEGS.JK","IOTF.JK","KOCI.JK","PTPS.JK","BREN.JK","STRK.JK","KOKA.JK","LOPI.JK","UDNG.JK","RGAS.JK","MSTI.JK","IKPM.JK","AYAM.JK","SURI.JK","ASLI.JK","GRPH.JK","SMGA.JK","UNTD.JK","TOSK.JK","MPIX.JK","ALII.JK","MKAP.JK","MEJA.JK","LIVE.JK","HYGN.JK","BAIK.JK","VISI.JK","AREA.JK","MHKI.JK","ATLA.JK","DATA.JK","SOLA.JK","BATR.JK","SPRE.JK","PART.JK","GOLF.JK","ISEA.JK","BLES.JK","GUNA.JK","LABS.JK","DOSS.JK","NEST.JK","PTMR.JK","VERN.JK","DAAZ.JK","BOAT.JK","NAIK.JK","AADI.JK","MDIY.JK","KSIX.JK","RATU.JK","YOII.JK","HGII.JK","BRRC.JK","DGWG.JK","CBDK.JK","OBAT.JK","MINE.JK","ASPR.JK","PSAT.JK","COIN.JK","CDIA.JK","BLOG.JK","MERI.JK","CHEK.JK","PMUI.JK","EMAS.JK","PJHB.JK","KAQI.JK","YUPI.JK","FORE.JK","MDLA.JK","DKHH.JK","AYLS.JK","DADA.JK","ASPI.JK","ESTA.JK","BESS.JK","AMAN.JK","CARE.JK","PIPA.JK","NCKL.JK","MENN.JK","AWAN.JK","MBMA.JK","RAAM.JK","DOOH.JK","CGAS.JK","NICE.JK","MSJA.JK","SMLE.JK","ACRO.JK","MANG.JK","WIFI.JK","FAPA.JK","DCII.JK","KETR.JK","DGNS.JK","UFOE.JK",
-    # Tambah sampai 100 ticker
+GRID_TICKERS = [
+    "AALI.JK","ACES.JK","ADHI.JK","ADRO.JK","AKRA.JK","AMRT.JK","ANTM.JK","APLN.JK","ARTO.JK","ASII.JK","ASRI.JK","AUTO.JK",
+    "BBCA.JK","BBKP.JK","BBNI.JK","BBRI.JK","BBTN.JK","BDMN.JK","BEST.JK","BFIN.JK","BIRD.JK","BJBR.JK","BJTM.JK","BMRI.JK",
+    "BMTR.JK","BNGA.JK","BRIS.JK","BRPT.JK","BSDE.JK","BUMI.JK","BYAN.JK","CASA.JK","CENT.JK","CLEO.JK","CPIN.JK","CTRA.JK",
+    "DEWA.JK","DILD.JK","DMAS.JK","ELSA.JK","EMTK.JK","ENRG.JK","ERAA.JK","EXCL.JK","FILM.JK","GGRM.JK","GIAA.JK","GJTL.JK",
+    "GOTO.JK","HEAL.JK","HERO.JK","HMSP.JK","HRUM.JK","ICBP.JK","INCO.JK","INDF.JK","INDY.JK","INKP.JK","INTP.JK","ISAT.JK",
+    "ITMG.JK","JPFA.JK","JRPT.JK","JSMR.JK","KLBF.JK","KPIG.JK","LPCK.JK","LPKR.JK","LPPF.JK","LSIP.JK","MAPI.JK","MDKA.JK",
+    "MEDC.JK","MIKA.JK","MNCN.JK","MPPA.JK","MTEL.JK","MYOR.JK","PGAS.JK","PNBN.JK","PNLF.JK","PTBA.JK","PTPP.JK","PWON.JK",
+    "RALS.JK","ROTI.JK","SCMA.JK","SIDO.JK","SILO.JK","SIMP.JK","SMGR.JK","SMRA.JK","SRIL.JK","SSIA.JK","TAPG.JK","TBIG.JK",
+    "TINS.JK","TKIM.JK","TLKM.JK","TOWR.JK","TPIA.JK","UNTR.JK","UNVR.JK","WIKA.JK","WSKT.JK","WTON.JK","AMMN.JK","BREN.JK",
+    "CUAN.JK","MBMA.JK","NCKL.JK","PGEO.JK","VKTR.JK"
 ]
-
 
 SAMPLE_SCREENER_TICKERS = GRID_TICKERS
 DEFAULT_INPUT_TXT = "BBCA.JK\nBBRI.JK\nGOTO.JK\nADRO.JK"
@@ -160,11 +168,9 @@ def get_stock_volume_stats(tickers_list, period_code="1mo"):
     download_period = "5d" if period_code == "1d" else "1mo"
     if period_code == "ytd": download_period = "ytd"
     elif period_code == "1y": download_period = "1y"
-    
     try:
         data = yf.download(tickers_list, period=download_period, group_by='ticker', progress=False, auto_adjust=False)
     except: return None
-
     stats = []
     for t in tickers_list:
         try:
@@ -173,15 +179,12 @@ def get_stock_volume_stats(tickers_list, period_code="1mo"):
                 if isinstance(data.columns, pd.MultiIndex):
                      if t not in data.columns.levels[0]: continue
                 df = data[t]; symbol = t
-            
             if df.empty: continue
             if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
             df = df.loc[:, ~df.columns.duplicated()]
-            
             last_vol = df['Volume'].iloc[-1]
             last_close = df['Close'].iloc[-1]
             avg_vol = df['Volume'].tail(5).mean()
-            
             if period_code == "1d":
                 if len(df) >= 2:
                     prev_close = df['Close'].iloc[-2]
@@ -190,7 +193,6 @@ def get_stock_volume_stats(tickers_list, period_code="1mo"):
             else:
                 first_close = df['Close'].iloc[0]
                 change_pct = ((last_close - first_close) / first_close) * 100
-
             stats.append({
                 "Ticker": symbol, "Price": last_close, "Change %": change_pct,
                 "Volume": last_vol, "Avg Vol (5D)": avg_vol, "Est. Value": last_close * last_vol,
@@ -241,17 +243,14 @@ def get_performance_matrix(raw_input):
             tickers.append(item)
     tickers = list(set(tickers))
     if not tickers: return pd.DataFrame()
-
     try:
         data = yf.download(tickers, period="5y", group_by='ticker', progress=False, auto_adjust=False)
     except Exception: return pd.DataFrame()
-    
     results = []
     for t in tickers:
         try:
             try: industry = yf.Ticker(t).info.get('industry', '-')
             except: industry = '-'
-
             if len(tickers) == 1: df = data; symbol = tickers[0]
             else:
                 if isinstance(data.columns, pd.MultiIndex):
@@ -259,20 +258,16 @@ def get_performance_matrix(raw_input):
                 df = data[t]; symbol = t
             if df.empty: continue
             if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-            
             if 'Close' in df.columns: price_col = 'Close'
             elif 'Adj Close' in df.columns: price_col = 'Adj Close'
             else: continue
-            
             df = df[[price_col]].rename(columns={price_col: 'Close'})
             df = df.dropna()
             df.index = df.index.tz_localize(None)
             df = df.sort_index()
             if len(df) < 2: continue
-            
             curr_price = float(df['Close'].iloc[-1])
             curr_date = df.index[-1]
-
             def get_pct_change(days_ago):
                 target_date = curr_date - timedelta(days=days_ago)
                 past_data = df.loc[df.index <= target_date]
@@ -280,7 +275,6 @@ def get_performance_matrix(raw_input):
                 past_price = float(past_data['Close'].iloc[-1])
                 if past_price == 0: return 0.0
                 return ((curr_price - past_price) / past_price) * 100
-
             last_year = curr_date.year - 1
             last_year_end = datetime(last_year, 12, 31)
             ytd_data = df.loc[df.index <= last_year_end]
@@ -288,7 +282,6 @@ def get_performance_matrix(raw_input):
                 last_year_close = float(ytd_data['Close'].iloc[-1])
                 ytd_change = ((curr_price - last_year_close) / last_year_close) * 100
             else: ytd_change = None
-
             results.append({
                 "Ticker": symbol, "Industri": industry, "Harga": curr_price,
                 "1 Hari": ((curr_price - df['Close'].iloc[-2])/df['Close'].iloc[-2]) * 100,
@@ -310,14 +303,11 @@ def get_win_loss_details(raw_input):
             tickers.append(item)
     tickers = list(set(tickers))
     if not tickers: return pd.DataFrame(), {}
-
     try:
         data = yf.download(tickers, period="3mo", group_by='ticker', progress=False, auto_adjust=False)
     except: return pd.DataFrame(), {}
-
     summary_results = []
     detail_data = {} 
-
     for t in tickers:
         try:
             if len(tickers) == 1: df = data; symbol = tickers[0]
@@ -325,107 +315,67 @@ def get_win_loss_details(raw_input):
                 if isinstance(data.columns, pd.MultiIndex):
                      if t not in data.columns.levels[0]: continue
                 df = data[t]; symbol = t
-            
             if df.empty: continue
             if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-            
             if 'Close' in df.columns: col = 'Close'
             elif 'Adj Close' in df.columns: col = 'Adj Close'
             else: continue
-
             df['Change'] = df[col].pct_change() * 100
             df = df.dropna()
-
             df_30 = df.tail(30)
             if len(df_30) < 5: continue 
-
             detail_data[symbol] = df_30
-
             green_days = df_30[df_30['Change'] > 0]
             red_days = df_30[df_30['Change'] < 0]
-
             count_green = len(green_days)
             count_red = len(red_days)
             win_rate = (count_green / len(df_30)) * 100
-
             avg_gain = green_days['Change'].mean() if not green_days.empty else 0
             avg_loss = red_days['Change'].mean() if not red_days.empty else 0
             total_return_30d = ((df_30[col].iloc[-1] - df_30[col].iloc[0]) / df_30[col].iloc[0]) * 100
-
             summary_results.append({
                 "Ticker": symbol, "Total Candle": len(df_30), "Hari Hijau": count_green, "Hari Merah": count_red,
                 "Win Rate": win_rate, "Rata2 Naik": avg_gain, "Rata2 Turun": avg_loss, "Total Return (30 Candle)": total_return_30d
             })
         except: continue
-    
     return pd.DataFrame(summary_results), detail_data
 
 # --- 6. VISUALISASI ---
 
 def create_mini_chart_complex(df, ticker, period_code):
     jkt_tz = pytz.timezone('Asia/Jakarta')
-    if df.index.tz is None:
-        df.index = df.index.tz_localize('UTC').tz_convert(jkt_tz)
-    else:
-        df.index = df.index.tz_convert(jkt_tz)
-
+    if df.index.tz is None: df.index = df.index.tz_localize('UTC').tz_convert(jkt_tz)
+    else: df.index = df.index.tz_convert(jkt_tz)
     df['MA20'] = df['Close'].rolling(window=20).mean()
     first_price = df['Close'].iloc[0]
     df['Pct'] = ((df['Close'] - first_price) / first_price) * 100
-    
     fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
     if period_code == "1d":
-        fig.add_trace(go.Candlestick(
-            x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
-            name="Price", showlegend=False
-        ), secondary_y=False)
+        fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price", showlegend=False), secondary_y=False)
         fig.update_layout(xaxis_rangeslider_visible=False)
     else:
         last_p = df['Close'].iloc[-1]
         prev_p = df['Close'].iloc[-2] if len(df) > 1 else last_p
         color_line = '#00C805' if last_p >= prev_p else '#FF333A'
-        
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df['Close'], mode='lines', 
-            line=dict(color=color_line, width=1.5), name="Price"
-        ), secondary_y=False)
-        
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df['MA20'], mode='lines', 
-            line=dict(color='#FF9800', width=1), name="MA20"
-        ), secondary_y=False)
-
-    fig.add_trace(go.Scatter(
-        x=df.index, y=df['Pct'], mode='lines',
-        line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='skip'
-    ), secondary_y=True)
-
+        fig.add_trace(go.Scatter(x=df.index, y=df['Close'], mode='lines', line=dict(color=color_line, width=1.5), name="Price"), secondary_y=False)
+        fig.add_trace(go.Scatter(x=df.index, y=df['MA20'], mode='lines', line=dict(color='#FF9800', width=1), name="MA20"), secondary_y=False)
+    fig.add_trace(go.Scatter(x=df.index, y=df['Pct'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='skip'), secondary_y=True)
     if period_code == "3mo":
         one_month_ago = datetime.now(jkt_tz) - timedelta(days=30)
         fig.add_vline(x=one_month_ago, line_width=1, line_dash="dot", line_color="blue")
-
     fig.update_layout(
         title=dict(text=ticker, font=dict(size=12), x=0.5, xanchor='center'),
-        margin=dict(l=5, r=5, t=30, b=5),
-        height=200,
-        showlegend=False,
-        hovermode="x unified"
+        margin=dict(l=5, r=5, t=30, b=5), height=200, showlegend=False, hovermode="x unified"
     )
-    
     fig.update_yaxes(title=None, showticklabels=True, tickfont=dict(size=8), secondary_y=False)
     fig.update_yaxes(title=None, showticklabels=True, tickfont=dict(size=8, color='gray'), tickformat=".1f%", secondary_y=True)
     fig.update_xaxes(showticklabels=False)
-
     return fig
 
 def create_detail_chart(df, ticker, df_fin_filtered):
     fig = make_subplots(
-        rows=3, cols=1, 
-        shared_xaxes=True, 
-        vertical_spacing=0.05, 
-        row_heights=[0.5, 0.2, 0.3],
-        subplot_titles=(f"Price Action: {ticker}", "Volume", "Revenue & Net Income")
+        rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.05, 
+        row_heights=[0.5, 0.2, 0.3], subplot_titles=(f"Price Action: {ticker}", "Volume", "Revenue & Net Income")
     )
     fig.add_trace(go.Candlestick(x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price", showlegend=False), row=1, col=1)
     if len(df) > 20: fig.add_trace(go.Scatter(x=df['Date'], y=df['Close'].rolling(20).mean(), line=dict(color='orange', width=1), name="MA 20"), row=1, col=1)
@@ -442,27 +392,23 @@ def create_detail_chart(df, ticker, df_fin_filtered):
 # --- 7. MAIN UI ---
 st.title("📈 Super Stock Dashboard")
 
-# === SIDEBAR MENU ===
 st.sidebar.title("Menu Navigasi")
 menu = st.sidebar.radio(
     "Pilih Fitur:",
-    ["📊 Grid Overview", "⚖️ Bandingkan", "🔊 Analisa Volume", "⭐ Watchlist", "🔎 Detail Saham", "🔄 Cycle Analysis", "💎 Fundamental", "🚀 Performa", "🎲 Win/Loss Stats", "🔎 Multi-Chart"]
+    ["📊 Grid Overview", "⚖️ Bandingkan", "🔊 Analisa Volume", "⭐ Watchlist", "🔎 Detail Saham", "🔄 Cycle Analysis", "💎 Fundamental", "🚀 Performa", "🎲 Win/Loss Stats", "🔎 Multi-Chart", "📉 HL/Close Analysis"]
 )
 
 # === PAGE 1: GRID ===
 if menu == "📊 Grid Overview":
     st.header("📊 Grid Overview")
-    
     with st.expander("🔍 Filter Grid (Harga & Volume)", expanded=False):
         c1, c2, c3, c4 = st.columns(4)
         with c1: min_p = st.number_input("Min Harga (Rp)", value=0, step=50)
         with c2: max_p = st.number_input("Max Harga (Rp)", value=100000, step=50)
         with c3: min_val_m = st.number_input("Min. Transaksi (Miliar Rp)", value=0, step=1)
         with c4: min_vol_l = st.number_input("Min. Volume (Lot)", value=0, step=1000)
-    
     final_tickers = GRID_TICKERS
     is_filtering = (max_p < 100000) or (min_p > 0) or (min_val_m > 0) or (min_vol_l > 0)
-    
     if is_filtering:
         with st.spinner("Memfilter saham..."):
             snapshot = get_latest_snapshot(GRID_TICKERS)
@@ -475,46 +421,34 @@ if menu == "📊 Grid Overview":
                     filtered_list.append(t)
             final_tickers = filtered_list
             st.success(f"Ditemukan {len(final_tickers)} saham sesuai filter.")
-
     col_tf, col_nav = st.columns([3, 2])
     with col_tf:
         period_label = st.selectbox("Timeframe:", ["1 Hari", "5 Hari", "1 Bulan", "3 Bulan", "6 Bulan", "1 Tahun", "YTD"], index=3)
         period_map = {"1 Hari": "1d", "5 Hari": "5d", "1 Bulan": "1mo", "3 Bulan": "3mo", "6 Bulan": "6mo", "1 Tahun": "1y", "YTD": "ytd"}
         selected_code = period_map[period_label]
         selected_interval = "5m" if selected_code in ["1d", "5d"] else "1d"
-
     items_per_page = 12 
     if not final_tickers:
         st.warning("Tidak ada data.")
         total_pages = 1
     else:
         total_pages = math.ceil(len(final_tickers)/items_per_page)
-
     with col_nav:
         c_prev, c_txt, c_next = st.columns([1, 2, 1])
         with c_prev:
-            if st.button("⬅️") and st.session_state.grid_page > 1:
-                st.session_state.grid_page -= 1
+            if st.button("⬅️") and st.session_state.grid_page > 1: st.session_state.grid_page -= 1
         with c_next:
-            if st.button("➡️") and st.session_state.grid_page < total_pages:
-                st.session_state.grid_page += 1
-        with c_txt:
-            st.write(f"Hal {st.session_state.grid_page} dari {total_pages}")
-
+            if st.button("➡️") and st.session_state.grid_page < total_pages: st.session_state.grid_page += 1
+        with c_txt: st.write(f"Hal {st.session_state.grid_page} dari {total_pages}")
     if final_tickers:
         start = (st.session_state.grid_page - 1) * items_per_page
         end = start + items_per_page
         batch = final_tickers[start:end]
-        
         def toggle_pick(ticker):
-            if ticker in st.session_state.picked_stocks:
-                st.session_state.picked_stocks.remove(ticker)
-            else:
-                st.session_state.picked_stocks.append(ticker)
-
+            if ticker in st.session_state.picked_stocks: st.session_state.picked_stocks.remove(ticker)
+            else: st.session_state.picked_stocks.append(ticker)
         with st.spinner(f"Memuat grafik {period_label}..."):
             data_grid = get_stock_history_bulk(batch, period=selected_code, interval=selected_interval)
-            
             if not data_grid.empty:
                 cols = st.columns(4) 
                 for i, ticker in enumerate(batch):
@@ -526,27 +460,20 @@ if menu == "📊 Grid Overview":
                                 if ticker in data_grid.columns.levels[0]: df_target = data_grid[ticker].copy()
                             else:
                                 if len(batch) == 1: df_target = data_grid.copy()
-                            
                             if df_target.empty:
                                 st.caption(f"❌ {ticker}")
                                 continue
-                            
                             if 'Close' not in df_target.columns and 'Adj Close' in df_target.columns:
                                 df_target = df_target.rename(columns={'Adj Close': 'Close'})
-                            
                             df_target = df_target.dropna(subset=['Close'])
                             min_pts = 5 if selected_code != "1d" else 2
-                            
                             if len(df_target) >= min_pts:
                                 fig = create_mini_chart_complex(df_target, ticker, selected_code)
                                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                                 is_checked = ticker in st.session_state.picked_stocks
                                 st.checkbox(f"Pilih {ticker}", value=is_checked, key=f"chk_{ticker}_{st.session_state.grid_page}", on_change=toggle_pick, args=(ticker,))
-                            else:
-                                st.caption(f"⚠️ {ticker} (No Data)")
-                        except Exception as e:
-                            st.caption(f"Error {ticker}")
-
+                            else: st.caption(f"⚠️ {ticker} (No Data)")
+                        except Exception as e: st.caption(f"Error {ticker}")
     st.info(f"🛒 Keranjang Pilihan: {len(st.session_state.picked_stocks)} saham. Buka menu '⚖️ Bandingkan'.")
 
 # === PAGE 2: BANDINGKAN ===
@@ -573,7 +500,6 @@ elif menu == "⚖️ Bandingkan":
                             if ticker in comp_data.columns.levels[0]: df_c = comp_data[ticker].copy()
                         else:
                             if len(picked) == 1: df_c = comp_data.copy()
-                        
                         if not df_c.empty:
                             df_c = df_c.dropna()
                             fig = create_mini_chart_complex(df_c, ticker, "6mo") 
@@ -586,9 +512,7 @@ elif menu == "⚖️ Bandingkan":
 # === PAGE 3: VOLUME ===
 elif menu == "🔊 Analisa Volume":
     st.header("Analisis Volume")
-    
     default_text = ", ".join(st.session_state.vol_saved_tickers)
-    
     c1, c2 = st.columns([3, 1])
     with c1:
         vol_input = st.text_area("Input Saham:", value=default_text, height=70, placeholder="Misal: BBCA, GOTO", key="vol_in_multi")
@@ -597,20 +521,15 @@ elif menu == "🔊 Analisa Volume":
         vol_period = st.selectbox("Rentang Waktu:", ["1 Hari", "1 Minggu", "1 Bulan", "YTD"], index=2)
         vol_period_map = {"1 Hari": "1d", "1 Minggu": "5d", "1 Bulan": "1mo", "YTD": "ytd"}
         selected_vol_period = vol_period_map[vol_period]
-        
     c3, c4, c5 = st.columns([1, 1, 1])
-    with c3:
-        btn_custom = st.button("🔍 Analisa Input", use_container_width=True)
-    with c4:
-        btn_top20 = st.button("🔥 Top 20 Volume", use_container_width=True)
+    with c3: btn_custom = st.button("🔍 Analisa Input", use_container_width=True)
+    with c4: btn_top20 = st.button("🔥 Top 20 Volume", use_container_width=True)
     with c5:
         if st.button("🗑️ Hapus List", use_container_width=True):
             st.session_state.vol_saved_tickers = []
             save_data()
             st.rerun()
-
     df_vol_result = pd.DataFrame()
-
     if btn_custom and vol_input:
         raw_list = vol_input.replace('\n', ',').replace(' ', ',').split(',')
         clean_list = []
@@ -626,35 +545,26 @@ elif menu == "🔊 Analisa Volume":
                 df_vol_result = get_stock_volume_stats(list(set(clean_list)), period_code=selected_vol_period)
                 st.session_state['vol_result'] = df_vol_result 
                 st.rerun()
-
     elif btn_top20:
         with st.spinner("Scanning Top 20 Volume..."):
             df_all = get_stock_volume_stats(GRID_TICKERS, period_code=selected_vol_period)
             if df_all is not None and not df_all.empty:
                 df_vol_result = df_all.sort_values(by="Volume", ascending=False).head(20)
                 st.session_state['vol_result'] = df_vol_result
-
     if 'vol_result' in st.session_state and not st.session_state['vol_result'].empty:
         df_show = st.session_state['vol_result']
         st.divider()
         st.subheader(f"Hasil Analisa Volume ({vol_period})")
-        
         sort_col = st.radio("Urutkan berdasarkan:", ["Volume", "Est. Value", "Vol vs Avg"], horizontal=True)
         if sort_col == "Volume": df_show = df_show.sort_values(by="Volume", ascending=False)
         elif sort_col == "Est. Value": df_show = df_show.sort_values(by="Est. Value", ascending=False)
         elif sort_col == "Vol vs Avg": df_show = df_show.sort_values(by="Vol vs Avg", ascending=False)
-        
         def highlight_vol_spike(val):
             color = '#d4f7d4' if val >= 1.5 else ''
             return f'background-color: {color}'
-            
         st.dataframe(df_show.style.format({
-                "Price": "{:,.0f}",
-                "Change %": "{:+.2f}%",
-                "Volume": "{:,.0f}", 
-                "Avg Vol (5D)": "{:,.0f}", 
-                "Est. Value": "Rp {:,.0f}", 
-                "Vol vs Avg": "{:.2f}x"
+                "Price": "{:,.0f}", "Change %": "{:+.2f}%", "Volume": "{:,.0f}", 
+                "Avg Vol (5D)": "{:,.0f}", "Est. Value": "Rp {:,.0f}", "Vol vs Avg": "{:.2f}x"
             }).applymap(highlight_vol_spike, subset=['Vol vs Avg']), use_container_width=True, hide_index=True)
 
 # === PAGE 4: WATCHLIST ===
@@ -683,7 +593,6 @@ elif menu == "⭐ Watchlist":
                                 if ticker in dw.columns.levels[0]: df = dw[ticker].copy()
                             else:
                                 if len(cw) == 1: df = dw.copy()
-                            
                             if not df.empty:
                                 df = df.dropna()
                                 fig = create_mini_chart_complex(df, ticker, "3mo")
@@ -824,11 +733,8 @@ elif menu == "🚀 Performa":
 # === PAGE 9: WIN/LOSS & SIMULATOR ===
 elif menu == "🎲 Win/Loss Stats":
     st.title("🎲 Analisa Win/Loss & Simulator")
-    
-    # Sub-tabs
     wl_tab1, wl_tab2 = st.tabs(["📅 Probabilitas Harian (30 Hari)", "⚙️ Advanced Simulator (Backtest)"])
     
-    # --- SUB-TAB 1: PROBABILITAS HARIAN ---
     with wl_tab1:
         st.subheader("Probabilitas Harian (30 Hari Terakhir)")
         win_input = st.text_area("Input Saham (Harian):", value=DEFAULT_INPUT_TXT, height=100, key="win_in")
@@ -877,11 +783,8 @@ elif menu == "🎲 Win/Loss Stats":
                     html_code += "</div>"
                     st.markdown(html_code, unsafe_allow_html=True)
 
-    # --- SUB-TAB 2: ADVANCED SIMULATOR ---
     with wl_tab2:
         st.subheader("🎲 Advanced Win Rate & Backtest Simulator")
-        
-        # 1. Kontrol Input Simulator
         col_sim1, col_sim2, col_sim3 = st.columns([2, 1, 1])
         with col_sim1:
             def_sim = "BBCA.JK, BBRI.JK, BMRI.JK, ADRO.JK, GOTO.JK, ANTM.JK"
@@ -896,24 +799,19 @@ elif menu == "🎲 Win/Loss Stats":
 
         run_sim = st.button("🚀 Jalankan Simulasi")
 
-        # 2. Logika Proses Simulator
         if run_sim:
             with st.spinner("Mengambil data historis & menghitung probabilitas..."):
                 tickers = [x.strip().upper() for x in sim_tickers_input.split(',') if x.strip()]
                 tickers = [t if t.endswith('.JK') else t + '.JK' for t in tickers]
-                
-                # Download Data
                 data = yf.download(tickers, period=yf_period, group_by='ticker', progress=False, auto_adjust=False)
                 sim_results = []
-                
                 for t in tickers:
                     try:
                         if len(tickers) > 1:
                             if isinstance(data.columns, pd.MultiIndex):
                                 if t not in data.columns.levels[0]: continue
                             hist = data[t].dropna()
-                        else:
-                            hist = data.dropna()
+                        else: hist = data.dropna()
                         
                         if len(hist) > 0:
                             start_price = hist['Open'].iloc[0]
@@ -921,26 +819,17 @@ elif menu == "🎲 Win/Loss Stats":
                             change_pct = ((end_price - start_price) / start_price) * 100
                             status = "WIN" if change_pct > 0 else "LOSS"
                             profit_rp = (end_price - start_price) * sim_lot * 100
-                            
                             sim_results.append({
-                                'Add': False,
-                                'Ticker': t.replace('.JK', ''),
-                                'Start Price': start_price,
-                                'End Price': end_price,
-                                'Return (%)': change_pct,
-                                'Est. Profit (Rp)': profit_rp,
-                                'Status': status,
-                                'Data': hist
+                                'Add': False, 'Ticker': t.replace('.JK', ''), 'Start Price': start_price,
+                                'End Price': end_price, 'Return (%)': change_pct, 'Est. Profit (Rp)': profit_rp,
+                                'Status': status, 'Data': hist
                             })
                     except: continue
-                
                 st.session_state['sim_results'] = sim_results
 
-        # 3. Tampilkan Hasil Simulator
         if 'sim_results' in st.session_state and st.session_state['sim_results']:
             results = st.session_state['sim_results']
             df_sim = pd.DataFrame(results)
-            
             total_trades = len(df_sim)
             wins = len(df_sim[df_sim['Status'] == 'WIN'])
             win_rate = (wins / total_trades) * 100 if total_trades > 0 else 0
@@ -952,7 +841,6 @@ elif menu == "🎲 Win/Loss Stats":
             m2.metric("Total Estimasi PnL", f"Rp {total_pnl:,.0f}", help=f"Asumsi {sim_lot} Lot per saham")
             m3.metric("Periode Analisa", sim_period)
             
-            # Interactive Table
             st.write("### 📋 Detail Performa")
             col_cfg = {
                 "Add": st.column_config.CheckboxColumn("Add to Watchlist", default=False),
@@ -966,9 +854,7 @@ elif menu == "🎲 Win/Loss Stats":
             
             edited_df = st.data_editor(
                 df_sim[['Add', 'Ticker', 'Start Price', 'End Price', 'Return (%)', 'Est. Profit (Rp)', 'Status']],
-                column_config=col_cfg,
-                hide_index=True,
-                use_container_width=True,
+                column_config=col_cfg, hide_index=True, use_container_width=True,
                 disabled=['Ticker', 'End Price', 'Return (%)', 'Est. Profit (Rp)', 'Status']
             )
             
@@ -981,7 +867,6 @@ elif menu == "🎲 Win/Loss Stats":
                 save_data()
                 st.success(f"✅ {len(new_watch_items)} saham ditambahkan ke Watchlist!")
 
-            # Chart Simulation
             st.write(f"### 📈 Grafik Pergerakan ({chart_type})")
             fig_sim = go.Figure()
             for item in results:
@@ -996,17 +881,14 @@ elif menu == "🎲 Win/Loss Stats":
                     y_data = hist_data['Close']
                     hover_temp = "<b>%{x|%d %b}</b><br>Harga: Rp %{y:,.0f}"
                     y_suffix = ""
-                
                 line_color = '#00C805' if item['Return (%)'] > 0 else '#FF3B30'
                 fig_sim.add_trace(go.Scatter(x=hist_data.index, y=y_data, mode='lines', name=ticker_name, line=dict(width=2, color=line_color), hovertemplate=hover_temp))
-            
             fig_sim.update_layout(height=400, hovermode="x unified", yaxis=dict(ticksuffix=y_suffix, gridcolor='#eee'), xaxis=dict(showgrid=False), margin=dict(l=0, r=0, t=30, b=0))
             st.plotly_chart(fig_sim, use_container_width=True)
 
 # === PAGE 10: MULTI CHART (NEW) ===
 elif menu == "🔎 Multi-Chart":
     st.header("🔎 Analisa Grafik Multi-Saham")
-    
     col_mc1, col_mc2, col_mc3 = st.columns([3, 1, 1])
     with col_mc1:
         def_mc = "BBCA, ADRO, GOTO, TLKM"
@@ -1026,7 +908,6 @@ elif menu == "🔎 Multi-Chart":
             "1 Tahun":  {"p": "1y",  "i": "1d"},
         }
         params = tf_map[mc_tf]
-        
         raw_tickers = [x.strip().upper() for x in mc_input.split(',')]
         clean_tickers = [t + ".JK" if not t.endswith(".JK") else t for t in raw_tickers if t]
         
@@ -1043,16 +924,13 @@ elif menu == "🔎 Multi-Chart":
                     if len(clean_tickers) > 1:
                         if ticker not in data.columns.levels[0]: continue
                         df = data[ticker].dropna()
-                    else:
-                        df = data.dropna()
+                    else: df = data.dropna()
                     
                     if len(df) > 0:
                         jkt_tz = pytz.timezone('Asia/Jakarta')
                         if df.index.tz is None: df.index = df.index.tz_localize('UTC')
                         df.index = df.index.tz_convert(jkt_tz)
-                        
                         df['MA20'] = df['Close'].rolling(window=20).mean()
-                        
                         fig = go.Figure()
                         fig.add_trace(go.Candlestick(
                             x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
@@ -1062,10 +940,8 @@ elif menu == "🔎 Multi-Chart":
                             x=df.index, y=df['MA20'], mode='lines', 
                             line=dict(color='#FFA500', width=1.5), name='MA 20'
                         ))
-                        
                         curr_price = df['Close'].iloc[-1]
                         chg_pct = ((curr_price - df['Open'].iloc[0]) / df['Open'].iloc[0]) * 100
-                        
                         fig.update_layout(
                             title=dict(text=f"<b>{ticker.replace('.JK','')}</b> : Rp {curr_price:,.0f} ({chg_pct:+.2f}%)", x=0, font=dict(size=16)),
                             height=350, xaxis_rangeslider_visible=False, hovermode="x unified",
@@ -1076,5 +952,73 @@ elif menu == "🔎 Multi-Chart":
                         st.plotly_chart(fig, use_container_width=True)
                         st.divider()
                 except Exception as e: continue
-        else:
-            st.warning("Masukkan setidaknya satu kode saham.")
+        else: st.warning("Masukkan setidaknya satu kode saham.")
+
+# === PAGE 11: HL/CLOSE ANALYSIS (NEW) ===
+elif menu == "📉 HL/Close Analysis":
+    st.header("📉 Analisa High, Low, Close & MA20")
+    st.caption("Membandingkan rentang pergerakan harga (High-Low) dengan tren rata-rata (MA20).")
+    
+    col_hl1, col_hl2, col_hl3 = st.columns([3, 1, 1])
+    with col_hl1:
+        def_hl = "BBCA, GOTO, ANTM, BBRI"
+        hl_input = st.text_input("Daftar Saham (Pisahkan koma, tanpa .JK):", value=def_hl, key="hl_in")
+    with col_hl2:
+        hl_period = st.selectbox("Rentang Waktu:", ["5 Hari", "1 Bulan", "3 Bulan", "6 Bulan"], index=1, key="hl_per")
+    with col_hl3:
+        run_hl = st.button("Tampilkan Garis", key="btn_hl")
+        
+    if run_hl or hl_input:
+        tf_logic = {
+            "5 Hari":   {"fetch": "3mo", "slice": 5},
+            "1 Bulan":  {"fetch": "3mo", "slice": 22},
+            "3 Bulan":  {"fetch": "6mo", "slice": 66},
+            "6 Bulan":  {"fetch": "1y",  "slice": 132},
+        }
+        cfg = tf_logic[hl_period]
+        raw_ticks = [x.strip().upper() for x in hl_input.split(',')]
+        clean_ticks = [t + ".JK" if not t.endswith(".JK") else t for t in raw_ticks if t]
+        
+        if clean_ticks:
+            with st.spinner("Menghitung High, Low, dan MA20..."):
+                try:
+                    data = yf.download(" ".join(clean_ticks), period=cfg['fetch'], interval="1d", group_by='ticker', progress=False)
+                except: data = pd.DataFrame()
+            
+            for ticker in clean_ticks:
+                try:
+                    if len(clean_ticks) > 1:
+                        if ticker not in data.columns.levels[0]: continue
+                        df = data[ticker].dropna()
+                    else: df = data.dropna()
+                    
+                    if len(df) > 20: 
+                        df['MA20'] = df['Close'].rolling(window=20).mean()
+                        df_view = df.tail(cfg['slice'])
+                        
+                        # Fix Timezone
+                        if df_view.index.tz is None: df_view.index = df_view.index.tz_localize('UTC')
+                        df_view.index = df_view.index.tz_convert('Asia/Jakarta')
+                        
+                        fig = go.Figure()
+                        # High (Green)
+                        fig.add_trace(go.Scatter(x=df_view.index, y=df_view['High'], mode='lines', name='High', line=dict(color='green', width=1, dash='dot')))
+                        # Low (Red)
+                        fig.add_trace(go.Scatter(x=df_view.index, y=df_view['Low'], mode='lines', name='Low', line=dict(color='red', width=1, dash='dot')))
+                        # Close (Black)
+                        fig.add_trace(go.Scatter(x=df_view.index, y=df_view['Close'], mode='lines+markers', name='Close Price', line=dict(color='black', width=3), marker=dict(size=4)))
+                        # MA20 (Blue)
+                        fig.add_trace(go.Scatter(x=df_view.index, y=df_view['MA20'], mode='lines', name='MA 20', line=dict(color='blue', width=2)))
+                        
+                        curr = df_view['Close'].iloc[-1]
+                        fig.update_layout(
+                            title=dict(text=f"<b>{ticker.replace('.JK','')}</b> (Close: {curr:,.0f})", x=0),
+                            height=400, hovermode="x unified", template="plotly_white",
+                            margin=dict(l=10, r=10, t=40, b=10),
+                            legend=dict(orientation="h", y=1.05, x=1, xanchor="right"),
+                            xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#eee')
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                        st.divider()
+                except Exception as e: continue
+        else: st.warning("Masukkan kode saham.")
