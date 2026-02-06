@@ -31,7 +31,7 @@ def get_5d_returns(tickers):
         try:
             df = yf.download(
                 ticker,
-                period="6d",
+                period="7d",     # buffer lebih aman
                 interval="1d",
                 progress=False
             )
@@ -39,12 +39,15 @@ def get_5d_returns(tickers):
             if df.empty or len(df) < 6:
                 continue
 
-            # Daily return (%)
-            ret = df["Close"].pct_change().dropna() * 100
-            ret = ret[-5:]
+            close = df["Close"].dropna()
+            volume = df["Volume"].dropna()
 
+            if len(close) < 6 or len(volume) < 5:
+                continue
+
+            ret = close.pct_change().dropna().tail(5) * 100
+            avg_volume = volume.tail(5).mean()
             total_return = ret.sum()
-            avg_volume = df["Volume"].tail(5).mean()
 
             rows.append({
                 "Ticker": ticker.replace(".JK", ""),
@@ -61,27 +64,17 @@ def get_5d_returns(tickers):
         except Exception as e:
             print(f"Error {ticker}: {e}")
 
-    return pd.DataFrame(rows)
+    # ✅ RETURN DENGAN KOLUM TETAP
+    columns = [
+        "Ticker", "Day-5", "Day-4", "Day-3",
+        "Day-2", "Day-1", "Total 5D (%)",
+        "Status", "Avg Volume"
+    ]
+
+    return pd.DataFrame(rows, columns=columns)
 
 # ================= RUN =================
 df = get_5d_returns(TICKERS)
 
-# Filter volume
-df = df[df["Avg Volume"] >= min_volume]
-
-# ================= DISPLAY =================
-st.dataframe(
-    df.sort_values("Total 5D (%)", ascending=False),
-    use_container_width=True,
-    column_config={
-        "Day-5": st.column_config.NumberColumn(format="%.2f%%"),
-        "Day-4": st.column_config.NumberColumn(format="%.2f%%"),
-        "Day-3": st.column_config.NumberColumn(format="%.2f%%"),
-        "Day-2": st.column_config.NumberColumn(format="%.2f%%"),
-        "Day-1": st.column_config.NumberColumn(format="%.2f%%"),
-        "Total 5D (%)": st.column_config.NumberColumn(format="%.2f%%"),
-        "Avg Volume": st.column_config.NumberColumn(format="%.0f")
-    }
-)
-
-st.caption("Source: Yahoo Finance | 5 trading days | Sort kolom langsung di tabel")
+# ================= SAFETY CHECK =================
+if df.emp
