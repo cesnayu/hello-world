@@ -77,4 +77,23 @@ def get_5d_returns(tickers):
 df = get_5d_returns(TICKERS)
 
 # ================= SAFETY CHECK =================
-if df.emp:
+if df.empty:
+    st.warning("⚠️ Tidak ada data valid (Yahoo Finance kosong / market libur)")
+else:
+    df = df[df["Avg Volume"] >= min_volume]
+
+    st.dataframe(
+        df.sort_values("Total 5D (%)", ascending=False),
+        use_container_width=True,
+        column_config={
+            "Day-5": st.column_config.NumberColumn(format="%.2f%%"),
+            "Day-4": st.column_config.NumberColumn(format="%.2f%%"),
+            "Day-3": st.column_config.NumberColumn(format="%.2f%%"),
+            "Day-2": st.column_config.NumberColumn(format="%.2f%%"),
+            "Day-1": st.column_config.NumberColumn(format="%.2f%%"),
+            "Total 5D (%)": st.column_config.NumberColumn(format="%.2f%%"),
+            "Avg Volume": st.column_config.NumberColumn(format="%.0f")
+        }
+    )
+
+    st.caption("Source: Yahoo Finance | 5 trading days | Data kosong = market libur / timeout")
