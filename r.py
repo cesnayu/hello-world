@@ -21,33 +21,36 @@ def get_pe_revenue(tickers):
     for ticker in tickers:
         stock = yf.Ticker(ticker)
 
-        # -------- PRICE (fallback) --------
-        price = None
+        # ✅ DEFINE FIRST (PENTING)
+        info = {}
+
+        # -------- INFO --------
         try:
             info = stock.info or {}
-            price = (
-                info.get("currentPrice")
-                or info.get("regularMarketPrice")
-            )
         except:
             pass
 
-        # -------- PE --------
-        pe = info.get("trailingPE") if info else None
+        # -------- PRICE (fallback) --------
+        price = (
+            info.get("currentPrice")
+            or info.get("regularMarketPrice")
+        )
 
-        # -------- REVENUE (annual fallback) --------
+        # -------- PE --------
+        pe = info.get("trailingPE")
+
+        # -------- REVENUE (ANNUAL) --------
         revenue = None
         try:
             fin = stock.financials
             if not fin.empty:
-                for col in fin.index:
-                    if "Revenue" in col or "Sales" in col:
-                        revenue = fin.loc[col].iloc[0]
+                for row in fin.index:
+                    if "Revenue" in row or "Sales" in row:
+                        revenue = fin.loc[row].iloc[0]
                         break
         except:
             pass
 
-        # 👉 tetap append walau ada None
         rows.append({
             "Ticker": ticker.replace(".JK", ""),
             "Price": price,
@@ -60,17 +63,14 @@ def get_pe_revenue(tickers):
 # ================= RUN =================
 df = get_pe_revenue(TICKERS)
 
-if df.empty:
-    st.error("Yahoo Finance tidak mengembalikan data sama sekali")
-else:
-    st.dataframe(
-        df,
-        use_container_width=True,
-        column_config={
-            "Price": st.column_config.NumberColumn(format="%.0f"),
-            "PE": st.column_config.NumberColumn(format="%.2f"),
-            "Revenue": st.column_config.NumberColumn(format="%.2e")
-        }
-    )
+st.dataframe(
+    df,
+    use_container_width=True,
+    column_config={
+        "Price": st.column_config.NumberColumn(format="%.0f"),
+        "PE": st.column_config.NumberColumn(format="%.2f"),
+        "Revenue": st.column_config.NumberColumn(format="%.2e")
+    }
+)
 
-    st.caption("Source: Yahoo Finance | PE bisa kosong jika EPS negatif / tidak tersedia")
+st.caption("Source: Yahoo Finance | PE bisa None jika EPS negatif / tidak tersedia")
