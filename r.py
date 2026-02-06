@@ -4,14 +4,14 @@ import streamlit as st
 from datetime import datetime, timedelta
 
 # ================= CONFIG =================
-st.set_page_config(page_title="Quarterly Revenue & EPS", layout="wide")
-st.title("📊 Quarterly Revenue & EPS (Last 3 Years)")
+st.set_page_config(page_title="IHSG Quarterly Revenue & EPS", layout="wide")
+st.title("📊 IHSG Quarterly Revenue & EPS (Last 3 Years)")
 
 TICKERS = [
-    "AAPL",
-    "MSFT",
-    "GOOGL",
-    "AMZN"
+    "BBCA.JK",
+    "BBRI.JK",
+    "BMRI.JK",
+    "TLKM.JK"
 ]
 
 # ================= FUNCTION =================
@@ -23,28 +23,43 @@ def fetch_quarterly_data(tickers):
         try:
             stock = yf.Ticker(ticker)
 
-            # Revenue
-            revenue = stock.quarterly_financials.T
-            revenue = revenue[['Total Revenue']] if 'Total Revenue' in revenue else None
-
-            # EPS
-            eps = stock.quarterly_earnings
-
-            if revenue is None or eps.empty:
+            # -------- Revenue (auto detect column) --------
+            fin = stock.quarterly_financials.T
+            if fin.empty:
                 continue
 
+            revenue_col = None
+            for col in fin.columns:
+                if "Revenue" in col or "Sales" in col:
+                    revenue_col = col
+                    break
+
+            if revenue_col is None:
+                continue
+
+            revenue = fin[[revenue_col]]
+
+            # -------- EPS --------
+            eps = stock.quarterly_earnings
+            if eps.empty:
+                continue
+
+            # -------- Merge --------
             df = revenue.join(eps[['Earnings']], how="inner")
             df.index = pd.to_datetime(df.index)
             df = df[df.index >= three_years_ago]
 
+            if df.empty:
+                continue
+
             df.reset_index(inplace=True)
             df.rename(columns={
                 "index": "Quarter",
-                "Total Revenue": "Revenue",
+                revenue_col: "Revenue",
                 "Earnings": "EPS"
             }, inplace=True)
 
-            df["Ticker"] = ticker
+            df["Ticker"] = ticker.replace(".JK", "")
             df = df[["Ticker", "Quarter", "Revenue", "EPS"]]
 
             all_data.append(df)
@@ -63,7 +78,7 @@ def fetch_quarterly_data(tickers):
 df = fetch_quarterly_data(TICKERS)
 
 if df.empty:
-    st.warning("Data tidak tersedia")
+    st.warning("⚠️ Yahoo Finance tidak menyediakan quarterly financial untuk saham ini")
 else:
     st.dataframe(
         df,
@@ -74,4 +89,4 @@ else:
         }
     )
 
-    st.caption("Source: Yahoo Finance (Quarterly)")
+    st.caption("Source: Yahoo Finance (IHSG)")
