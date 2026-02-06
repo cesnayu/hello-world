@@ -77,4 +77,4 @@ def get_5d_returns(tickers):
 df = get_5d_returns(TICKERS)
 
 # ================= SAFETY CHECK =================
-if df.emp
+if df.emp:
