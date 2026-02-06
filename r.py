@@ -1,64 +1,77 @@
-import yfinance as yf
 import pandas as pd
+import numpy as np
 
-# 1. List Saham (Tambahkan .JK untuk saham Indonesia)
-tickers = ['BBCA.JK', 'BBRI.JK', 'TLKM.JK', 'ASII.JK']
+# 1. Buat Data Dummy (Contoh Profit dalam Miliar)
+# Kita buat data acak supaya terlihat perubahannya
+np.random.seed(42)
+data = {
+    'Ticker': ['BBCA', 'BBRI', 'BMRI', 'TLKM', 'ASII'],
+    'Q1 2024': np.random.randint(5000, 10000, 5),
+    'Q2 2024': np.random.randint(5000, 10000, 5),
+    'Q3 2024': np.random.randint(5000, 10000, 5),
+    'Q4 2024': np.random.randint(5000, 10000, 5),
+    'Q1 2025': np.random.randint(5000, 10000, 5),
+    'Q2 2025': np.random.randint(5000, 10000, 5),
+    'Q3 2025': np.random.randint(5000, 10000, 5),
+    'Q4 2025': np.random.randint(5000, 10000, 5),
+}
 
-# 2. Container untuk data
-all_data = []
+df = pd.DataFrame(data)
 
-print("Sedang mengambil data...")
+# Set Ticker sebagai index agar rapi
+df.set_index('Ticker', inplace=True)
 
-for ticker in tickers:
-    stock = yf.Ticker(ticker)
-    
-    # Ambil data keuangan kuartalan
-    # quarter_financials biasanya mereturn 4-5 kuartal terakhir.
-    # Untuk data lebih lama (2024), kadang yfinance membatasi akses gratis.
-    q_financials = stock.quarterly_income_stmt
-    
-    if q_financials is not None and not q_financials.empty:
-        # Transpose agar Tanggal jadi baris
-        df = q_financials.transpose()
-        
-        # Filter kolom yang diinginkan (Misal: Net Income)
-        # Nama kolom di yfinance: 'Net Income', 'Total Revenue'
-        try:
-            target_col = df[['Net Income']]
-        except KeyError:
-            continue # Skip jika data tidak ada
+# 2. Setup Excel Writer dengan engine XlsxWriter
+writer = pd.ExcelWriter('Laporan_Saham_Warna.xlsx', engine='xlsxwriter')
+df.to_excel(writer, sheet_name='Sheet1')
 
-        target_col.columns = ['Net Profit'] # Rename
-        target_col['Ticker'] = ticker.replace('.JK', '')
-        
-        # Reset index agar tanggal jadi kolom biasa
-        target_col.reset_index(inplace=True)
-        target_col.rename(columns={'index': 'Date'}, inplace=True)
-        
-        all_data.append(target_col)
+# 3. Akses Workbook dan Worksheet untuk modifikasi
+workbook  = writer.book
+worksheet = writer.sheets['Sheet1']
 
-# 3. Gabungkan semua data
-if all_data:
-    final_df = pd.concat(all_data)
+# 4. Definisikan Format Warna (Hijau & Merah)
+green_format = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
+red_format   = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
+
+# 5. Loop untuk menerapkan Conditional Formatting
+# Kita mulai dari kolom ke-2 (Index 2 di Excel, karena Index 0=Ticker, 1=Q1 2024)
+# Kita bandingkan kolom saat ini dengan kolom sebelumnya (col - 1)
+
+(max_row, max_col) = df.shape
+
+# Loop setiap kolom data (mulai dari kolom ke-2 sampai terakhir)
+for col_num in range(1, max_col): # range 1 karena kita skip kolom pertama (Q1) sbg base
+    # Konversi index kolom ke huruf Excel (Misal 1 -> B, 2 -> C)
+    # Karena ada index Ticker di kolom A, maka data pertama (Q1) ada di B.
+    # Data Q2 ada di C. Kita mau bandingkan C lawan B.
     
-    # Konversi Date ke format Q1/Q2
-    final_df['Date'] = pd.to_datetime(final_df['Date'])
-    final_df['Quarter'] = final_df['Date'].dt.to_period('Q').astype(str)
+    # Excel column index di xlsxwriter dimulai dari 0 (A=0, B=1, C=2)
+    # Ticker = col 0
+    # Q1 2024 = col 1
+    # Q2 2024 = col 2 (Ini yg mulai dikasih warna)
     
-    # 4. Pivot Table (Agar bentuknya Ticker di kiri, Kuartal di atas)
-    pivot_table = final_df.pivot_table(
-        index='Ticker', 
-        columns='Quarter', 
-        values='Net Profit'
-    )
+    current_excel_col = col_num + 1 # +1 karena ada kolom index Ticker
+    prev_excel_col_letter = chr(65 + current_excel_col - 1) # Huruf kolom sebelumnya (misal 'B')
+    curr_excel_col_letter = chr(65 + current_excel_col)     # Huruf kolom sekarang (misal 'C')
     
-    # Urutkan kolom (Q1 2024 - Q4 2025)
-    cols = sorted(pivot_table.columns)
-    pivot_table = pivot_table[cols]
+    # Terapkan Kondisi di Kolom tersebut
+    # Baris data dimulai dari baris 1 (karena baris 0 adalah Header)
     
-    print(pivot_table)
-    
-    # Export ke Excel jika mau
-    # pivot_table.to_excel("Laporan_Q1_24_to_Q4_25.xlsx")
-else:
-    print("Data tidak ditemukan.")
+    # ATURAN HIJAU (Naik): Cell Ini > Cell Sebelah Kiri
+    worksheet.conditional_format(1, current_excel_col, max_row, current_excel_col, {
+        'type':     'formula',
+        'criteria': f'={curr_excel_col_letter}2>{prev_excel_col_letter}2',
+        'format':   green_format
+    })
+
+    # ATURAN MERAH (Turun): Cell Ini < Cell Sebelah Kiri
+    worksheet.conditional_format(1, current_excel_col, max_row, current_excel_col, {
+        'type':     'formula',
+        'criteria': f'={curr_excel_col_letter}2<{prev_excel_col_letter}2',
+        'format':   red_format
+    })
+
+# 6. Simpan File
+writer.close()
+
+print("File 'Laporan_Saham_Warna.xlsx' berhasil dibuat! Cek folder Anda.")
