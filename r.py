@@ -1,92 +1,70 @@
 import yfinance as yf
 import pandas as pd
 import streamlit as st
-from datetime import datetime, timedelta
 
 # ================= CONFIG =================
-st.set_page_config(page_title="IHSG Quarterly Revenue & EPS", layout="wide")
-st.title("📊 IHSG Quarterly Revenue & EPS (Last 3 Years)")
+st.set_page_config(page_title="PE & Revenue Screener", layout="wide")
+st.title("📊 PE Ratio & Revenue Screener")
 
+# 👉 EDIT SAHAM DI SINI
 TICKERS = [
     "BBCA.JK",
     "BBRI.JK",
     "BMRI.JK",
-    "TLKM.JK"
+    "TLKM.JK",
+    "ASII.JK"
 ]
 
 # ================= FUNCTION =================
-def fetch_quarterly_data(tickers):
-    all_data = []
-    three_years_ago = datetime.now() - timedelta(days=3*365)
+def get_pe_revenue(tickers):
+    rows = []
 
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
+            info = stock.info
 
-            # -------- Revenue (auto detect column) --------
-            fin = stock.quarterly_financials.T
-            if fin.empty:
-                continue
+            # --- Price ---
+            price = info.get("currentPrice")
 
-            revenue_col = None
-            for col in fin.columns:
-                if "Revenue" in col or "Sales" in col:
-                    revenue_col = col
-                    break
+            # --- PE ---
+            pe = info.get("trailingPE")
 
-            if revenue_col is None:
-                continue
+            # --- Revenue (Annual) ---
+            fin = stock.financials
+            revenue = None
+            if not fin.empty:
+                for col in fin.columns:
+                    if "Revenue" in col or "Sales" in col:
+                        revenue = fin.loc[col].iloc[0]
+                        break
 
-            revenue = fin[[revenue_col]]
-
-            # -------- EPS --------
-            eps = stock.quarterly_earnings
-            if eps.empty:
-                continue
-
-            # -------- Merge --------
-            df = revenue.join(eps[['Earnings']], how="inner")
-            df.index = pd.to_datetime(df.index)
-            df = df[df.index >= three_years_ago]
-
-            if df.empty:
-                continue
-
-            df.reset_index(inplace=True)
-            df.rename(columns={
-                "index": "Quarter",
-                revenue_col: "Revenue",
-                "Earnings": "EPS"
-            }, inplace=True)
-
-            df["Ticker"] = ticker.replace(".JK", "")
-            df = df[["Ticker", "Quarter", "Revenue", "EPS"]]
-
-            all_data.append(df)
+            rows.append({
+                "Ticker": ticker.replace(".JK", ""),
+                "Price": price,
+                "PE": pe,
+                "Revenue": revenue
+            })
 
         except Exception as e:
             print(f"Error {ticker}: {e}")
 
-    if not all_data:
-        return pd.DataFrame()
-
-    final_df = pd.concat(all_data, ignore_index=True)
-    final_df.sort_values(["Ticker", "Quarter"], ascending=[True, False], inplace=True)
-    return final_df
+    return pd.DataFrame(rows)
 
 # ================= RUN =================
-df = fetch_quarterly_data(TICKERS)
+df = get_pe_revenue(TICKERS)
 
 if df.empty:
-    st.warning("⚠️ Yahoo Finance tidak menyediakan quarterly financial untuk saham ini")
+    st.warning("Data tidak tersedia")
 else:
     st.dataframe(
         df,
         use_container_width=True,
         column_config={
-            "Revenue": st.column_config.NumberColumn(format="%.2e"),
-            "EPS": st.column_config.NumberColumn(format="%.2f")
+            "Price": st.column_config.NumberColumn(format="%.0f"),
+            "PE": st.column_config.NumberColumn(format="%.2f"),
+            "Revenue": st.column_config.NumberColumn(format="%.2e")
         }
     )
 
-    st.caption("Source: Yahoo Finance (IHSG)")
+    st.caption("Source: Yahoo Finance | Annual Revenue | Trailing PE")
