@@ -1,91 +1,102 @@
+import streamlit as st
 import yfinance as yf
 import pandas as pd
 
 # ==========================================
-# 1. ISI DAFTAR SAHAM KAMU DI SINI
+# 1. SETUP JUDUL DASHBOARD
 # ==========================================
-# Pastikan pakai akhiran .JK
-daftar_saham = [
-    'BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'BBNI.JK', 'BRIS.JK', # Bank
-    'ASII.JK', 'TLKM.JK', 'GOTO.JK', 'AMRT.JK',            # Bluechip Lain
-    'ADRO.JK', 'PTBA.JK', 'PGEO.JK', 'BREN.JK',            # Energi
-    'ANTM.JK', 'MDKA.JK', 'UNVR.JK', 'ICBP.JK'             # Lainnya
-]
+st.set_page_config(page_title="Pantau Cuan Saham", layout="wide")
+st.title("📊 Dashboard Return Saham (5 Hari Terakhir)")
+st.caption("Memantau pergerakan harga saham Close-to-Close selama 5 hari bursa terakhir.")
 
 # ==========================================
-# 2. PENGATURAN FILTER VOLUME
+# 2. INPUT SAHAM (BISA DIEDIT USER)
 # ==========================================
-# Hanya tampilkan saham dengan rata-rata volume di atas angka ini
-# (Misal: 100000 lembar saham) agar tidak terjebak saham tidak likuid.
-MINIMUM_VOLUME = 100000 
+# Default list
+default_tickers = 'BBCA.JK, BBRI.JK, BMRI.JK, ASII.JK, GOTO.JK, TLKM.JK, ADRO.JK, UNVR.JK'
 
-# ==========================================
-# 3. PROSES PENGAMBILAN DATA
-# ==========================================
-print(f"Sedang menganalisa {len(daftar_saham)} saham untuk performa 5 hari terakhir...\n")
+# Input box biar user bisa nambah saham sendiri di layar
+input_saham = st.text_area("Masukkan Kode Saham (pisahkan dengan koma):", value=default_tickers)
 
-data_analisa = []
-
-for ticker in daftar_saham:
-    try:
-        # Ambil data 1 bulan terakhir untuk memastikan kita punya cukup hari bursa
-        # (Karena ada libur/sabtu minggu, kita ambil buffer lebih panjang)
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period="1mo")
-        
-        # Cek apakah data cukup (minimal butuh 6 baris untuk hitung selisih 5 hari)
-        if len(hist) >= 6:
-            # Harga Sekarang (Close Terakhir)
-            price_now = hist['Close'].iloc[-1]
-            
-            # Harga 5 Hari Bursa yang lalu (Index -6 karena -1 adalah hari ini)
-            price_5days_ago = hist['Close'].iloc[-6]
-            
-            # Volume Rata-rata 5 Hari Terakhir
-            avg_volume = hist['Volume'].iloc[-5:].mean()
-            
-            # Hitung Return (%)
-            # Rumus: (Harga Akhir - Harga Awal) / Harga Awal * 100
-            total_gain_5d = ((price_now - price_5days_ago) / price_5days_ago) * 100
-            
-            data_analisa.append({
-                'Ticker': ticker.replace('.JK', ''),
-                'Harga Awal (H-5)': int(price_5days_ago),
-                'Harga Akhir': int(price_now),
-                'Avg Volume': int(avg_volume),
-                'Total Gain 5D (%)': round(total_gain_5d, 2)
-            })
-        else:
-            print(f"⚠️ {ticker}: Data history kurang dari 5 hari (Mungkin saham baru IPO/Suspensi).")
-            
-    except Exception as e:
-        print(f"❌ Error pada {ticker}: {e}")
-
-# ==========================================
-# 4. FILTER & SORTING
-# ==========================================
-if len(data_analisa) > 0:
-    df = pd.DataFrame(data_analisa)
+# Tombol untuk mulai hitung
+if st.button("🚀 Hitung Return"):
     
-    # FILTER: Hapus saham yang volumenya kecil (di bawah settingan kamu)
-    df_filtered = df[df['Avg Volume'] >= MINIMUM_VOLUME]
+    # Rapikan input user menjadi list
+    daftar_saham = [x.strip() for x in input_saham.split(',')]
     
-    # SORTING: Urutkan berdasarkan 'Total Gain 5D (%)'
-    # ascending=False artinya dari BESAR ke KECIL (Gainer di atas)
-    # ascending=True artinya dari KECIL ke BESAR (Loser di atas)
-    df_sorted = df_filtered.sort_values(by='Total Gain 5D (%)', ascending=False)
-    
-    # Reset penomoran baris biar rapi 1, 2, 3...
-    df_sorted.reset_index(drop=True, inplace=True)
+    with st.spinner('Sedang menarik data dari Yahoo Finance...'):
+        try:
+            # Ambil data 1 bulan untuk aman
+            df = yf.download(daftar_saham, period="1mo", progress=False)['Close']
+            
+            # Ambil 6 data terakhir
+            df_last_5 = df.tail(6)
+            
+            if len(df_last_5) < 6:
+                st.error("Data tidak cukup. Mungkin pasar sedang libur panjang atau saham baru IPO.")
+            else:
+                # ==========================================
+                # 3. HITUNG RETURN
+                # ==========================================
+                price_now = df_last_5.iloc[-1]
+                price_5days_ago = df_last_5.iloc[0]
+                
+                # Hitung % Return
+                total_return_5d = ((price_now - price_5days_ago) / price_5days_ago) * 100
+                
+                # Buat DataFrame
+                result_df = pd.DataFrame({
+                    'Harga 5 Hari Lalu': price_5days_ago,
+                    'Harga Terakhir': price_now,
+                    'Total Gain 5D (%)': total_return_5d
+                })
 
-    print("\n" + "="*60)
-    print("HASIL ANALISA RETURN 5 HARI TERAKHIR (URUT DARI GAIN TERTINGGI)")
-    print("="*60)
-    print(df_sorted)
-    
-    # Export ke Excel (Opsional, hilangkan pagar jika mau pakai)
-    # df_sorted.to_excel("Analisa_5Hari.xlsx", index=False)
-    # print("\nFile Excel 'Analisa_5Hari.xlsx' berhasil disimpan!")
+                # Sorting (Tertinggi ke Terendah)
+                result_df = result_df.sort_values(by='Total Gain 5D (%)', ascending=False)
 
-else:
-    print("Tidak ada data yang berhasil diambil.")
+                # ==========================================
+                # 4. TAMPILKAN METRICS (KOTAK RINGKASAN)
+                # ==========================================
+                # Ambil Juara & Boncos
+                top_gainer_ticker = result_df.index[0]
+                top_gainer_val = result_df['Total Gain 5D (%)'].iloc[0]
+                
+                top_loser_ticker = result_df.index[-1]
+                top_loser_val = result_df['Total Gain 5D (%)'].iloc[-1]
+
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.metric(label="🏆 Top Gainer (5 Hari)", 
+                              value=top_gainer_ticker, 
+                              delta=f"{top_gainer_val:.2f}%")
+                
+                with col2:
+                    st.metric(label="💀 Top Loser (5 Hari)", 
+                              value=top_loser_ticker, 
+                              delta=f"{top_loser_val:.2f}%")
+
+                st.divider()
+
+                # ==========================================
+                # 5. TAMPILKAN TABEL UTAMA
+                # ==========================================
+                st.subheader("📋 Detail Performa")
+                
+                # Formatting warna tabel otomatis via Pandas Styler
+                # Hijau jika positif, Merah jika negatif
+                def warna_return(val):
+                    color = '#d4edda' if val > 0 else '#f8d7da' if val < 0 else ''
+                    return f'background-color: {color}; color: black'
+
+                # Tampilkan tabel di Streamlit
+                st.dataframe(
+                    result_df.style.applymap(warna_return, subset=['Total Gain 5D (%)'])
+                             .format("{:.2f}", subset=['Harga 5 Hari Lalu', 'Harga Terakhir'])
+                             .format("{:.2f}%", subset=['Total Gain 5D (%)']),
+                    use_container_width=True,
+                    height=500
+                )
+
+        except Exception as e:
+            st.error(f"Terjadi kesalahan: {e}")
