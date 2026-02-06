@@ -1,77 +1,96 @@
 import pandas as pd
 import numpy as np
+from xlsxwriter.utility import xl_col_to_name
 
-# 1. Buat Data Dummy (Contoh Profit dalam Miliar)
-# Kita buat data acak supaya terlihat perubahannya
-np.random.seed(42)
-data = {
-    'Ticker': ['BBCA', 'BBRI', 'BMRI', 'TLKM', 'ASII'],
-    'Q1 2024': np.random.randint(5000, 10000, 5),
-    'Q2 2024': np.random.randint(5000, 10000, 5),
-    'Q3 2024': np.random.randint(5000, 10000, 5),
-    'Q4 2024': np.random.randint(5000, 10000, 5),
-    'Q1 2025': np.random.randint(5000, 10000, 5),
-    'Q2 2025': np.random.randint(5000, 10000, 5),
-    'Q3 2025': np.random.randint(5000, 10000, 5),
-    'Q4 2025': np.random.randint(5000, 10000, 5),
-}
+# ==========================================
+# 1. SETUP DATA (SIMULASI 3 TAHUN / 12 KUARTAL)
+# ==========================================
+# Saya gunakan data dummy agar tabel PASTI terisi penuh dan warna terlihat.
+# Jika pakai Yahoo Finance gratis, seringkali datanya bolong/cuma 4 kuartal.
 
-df = pd.DataFrame(data)
+quarters = [
+    'Q1 2023', 'Q2 2023', 'Q3 2023', 'Q4 2023',
+    'Q1 2024', 'Q2 2024', 'Q3 2024', 'Q4 2024',
+    'Q1 2025', 'Q2 2025', 'Q3 2025', 'Q4 2025'
+]
 
-# Set Ticker sebagai index agar rapi
-df.set_index('Ticker', inplace=True)
+tickers = ['BBCA', 'BBRI', 'BMRI', 'TLKM', 'ASII']
 
-# 2. Setup Excel Writer dengan engine XlsxWriter
-writer = pd.ExcelWriter('Laporan_Saham_Warna.xlsx', engine='xlsxwriter')
-df.to_excel(writer, sheet_name='Sheet1')
+# Bikin Data Frame Revenue (Angka dalam Triliunan biar ringkas)
+df_revenue = pd.DataFrame(
+    np.random.randint(10, 50, size=(len(tickers), len(quarters))),
+    columns=quarters, index=tickers
+)
 
-# 3. Akses Workbook dan Worksheet untuk modifikasi
-workbook  = writer.book
-worksheet = writer.sheets['Sheet1']
+# Bikin Data Frame EPS (Angka satuan Rupiah)
+df_eps = pd.DataFrame(
+    np.random.randint(50, 500, size=(len(tickers), len(quarters))),
+    columns=quarters, index=tickers
+)
 
-# 4. Definisikan Format Warna (Hijau & Merah)
-green_format = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
-red_format   = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
+# ==========================================
+# 2. FUNGSI PEMBUAT FORMATTING EXCEL
+# ==========================================
+def save_formatted_excel(filename):
+    writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+    workbook = writer.book
 
-# 5. Loop untuk menerapkan Conditional Formatting
-# Kita mulai dari kolom ke-2 (Index 2 di Excel, karena Index 0=Ticker, 1=Q1 2024)
-# Kita bandingkan kolom saat ini dengan kolom sebelumnya (col - 1)
+    # Format Warna
+    green_fmt = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
+    red_fmt   = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
+    header_fmt = workbook.add_format({'bold': True, 'bg_color': '#DDEBF7', 'border': 1})
 
-(max_row, max_col) = df.shape
+    # Loop untuk memproses setiap DataFrame ke Sheet berbeda
+    dfs_to_write = {'Revenue': df_revenue, 'EPS': df_eps}
 
-# Loop setiap kolom data (mulai dari kolom ke-2 sampai terakhir)
-for col_num in range(1, max_col): # range 1 karena kita skip kolom pertama (Q1) sbg base
-    # Konversi index kolom ke huruf Excel (Misal 1 -> B, 2 -> C)
-    # Karena ada index Ticker di kolom A, maka data pertama (Q1) ada di B.
-    # Data Q2 ada di C. Kita mau bandingkan C lawan B.
-    
-    # Excel column index di xlsxwriter dimulai dari 0 (A=0, B=1, C=2)
-    # Ticker = col 0
-    # Q1 2024 = col 1
-    # Q2 2024 = col 2 (Ini yg mulai dikasih warna)
-    
-    current_excel_col = col_num + 1 # +1 karena ada kolom index Ticker
-    prev_excel_col_letter = chr(65 + current_excel_col - 1) # Huruf kolom sebelumnya (misal 'B')
-    curr_excel_col_letter = chr(65 + current_excel_col)     # Huruf kolom sekarang (misal 'C')
-    
-    # Terapkan Kondisi di Kolom tersebut
-    # Baris data dimulai dari baris 1 (karena baris 0 adalah Header)
-    
-    # ATURAN HIJAU (Naik): Cell Ini > Cell Sebelah Kiri
-    worksheet.conditional_format(1, current_excel_col, max_row, current_excel_col, {
-        'type':     'formula',
-        'criteria': f'={curr_excel_col_letter}2>{prev_excel_col_letter}2',
-        'format':   green_format
-    })
+    for sheet_name, df in dfs_to_write.items():
+        df.to_excel(writer, sheet_name=sheet_name)
+        worksheet = writer.sheets[sheet_name]
+        
+        (max_row, max_col) = df.shape
+        
+        # Percantik Header
+        for col_num, value in enumerate(df.columns.values):
+            worksheet.write(0, col_num + 1, value, header_fmt)
 
-    # ATURAN MERAH (Turun): Cell Ini < Cell Sebelah Kiri
-    worksheet.conditional_format(1, current_excel_col, max_row, current_excel_col, {
-        'type':     'formula',
-        'criteria': f'={curr_excel_col_letter}2<{prev_excel_col_letter}2',
-        'format':   red_format
-    })
+        # LOGIKA UTAMA PEWARNAAN (LOOP KOLOM)
+        # Mulai dari kolom ke-2 (Index 2, karena 0=Ticker, 1=Q1 2023)
+        # Kita bandingkan Col saat ini vs Col sebelumnya
+        
+        first_data_col = 1 # Kolom B (Data Q1)
+        
+        for i in range(first_data_col + 1, max_col + 1):
+            # i adalah index kolom saat ini (misal 2 = Kolom C)
+            # i-1 adalah index kolom sebelumnya (misal 1 = Kolom B)
+            
+            curr_col_letter = xl_col_to_name(i)       # Misal "C"
+            prev_col_letter = xl_col_to_name(i - 1)   # Misal "B"
+            
+            # Rumus Excel: =C2>B2 (Tanpa tanda $ agar relatif ke bawah)
+            rule_up   = f'={curr_col_letter}2>{prev_col_letter}2'
+            rule_down = f'={curr_col_letter}2<{prev_col_letter}2'
+            
+            # Terapkan ke seluruh baris data (dari baris 1 s/d max_row)
+            # Conditional format range: (first_row, first_col, last_row, last_col)
+            
+            # Aturan Hijau (Naik)
+            worksheet.conditional_format(1, i, max_row, i, {
+                'type': 'formula',
+                'criteria': rule_up,
+                'format': green_fmt
+            })
+            
+            # Aturan Merah (Turun)
+            worksheet.conditional_format(1, i, max_row, i, {
+                'type': 'formula',
+                'criteria': rule_down,
+                'format': red_fmt
+            })
 
-# 6. Simpan File
-writer.close()
+    writer.close()
+    print(f"File '{filename}' berhasil dibuat! Cek folder Anda.")
 
-print("File 'Laporan_Saham_Warna.xlsx' berhasil dibuat! Cek folder Anda.")
+# ==========================================
+# 3. EKSEKUSI
+# ==========================================
+save_formatted_excel('Laporan_Revenue_EPS_3Tahun.xlsx')
