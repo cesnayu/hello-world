@@ -1,132 +1,123 @@
 import pandas as pd
 import yfinance as yf
+import sys
 
 # ==========================================
-# 1. LIST SAHAM (BISA DITAMBAH SESUKANYA)
+# 1. LIST SAHAM
 # ==========================================
-# Pastikan pakai akhiran .JK untuk saham Indonesia
 daftar_saham = [
-    'BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'BBNI.JK',  # Bank
-    'ASII.JK', 'TLKM.JK',                        # Blue Chip Lain
-    'ADRO.JK', 'PTBA.JK', 'ITMG.JK',             # Batubara (Biasanya PE Rendah)
-    'UNVR.JK', 'ICBP.JK', 'MYOR.JK',             # Consumer (Biasanya PE Tinggi)
-    'GOTO.JK', 'BUKA.JK'                         # Tech (Seringkali PE Negatif/Rug)
+    'BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'BBNI.JK',
+    'ASII.JK', 'TLKM.JK',
+    'ADRO.JK', 'PTBA.JK', 'ITMG.JK',
+    'UNVR.JK', 'ICBP.JK', 'MYOR.JK',
+    'GOTO.JK', 'BUKA.JK'
 ]
 
-print(f"Sedang mengambil data untuk {len(daftar_saham)} saham. Mohon tunggu...")
+print(f"Sedang mengambil data untuk {len(daftar_saham)} saham...")
 
 data_list = []
 
 for ticker in daftar_saham:
     try:
         stock = yf.Ticker(ticker)
-        info = stock.info
+        # Menggunakan fast_info (lebih cepat & stabil dibanding .info biasa)
+        # fast_info seringkali lebih ampuh menembus limitasi yfinance
+        price = stock.fast_info.last_price
+        market_cap = stock.fast_info.market_cap
         
-        # Ambil data point penting
-        # Gunakan .get() agar tidak error jika data kosong
-        price = info.get('currentPrice', 0)
-        pe_ratio = info.get('trailingPE', None) # Bisa None jika rugi
-        revenue = info.get('totalRevenue', 0)
-        market_cap = info.get('marketCap', 0)
-        
-        # Nama Perusahaan (opsional, biar tidak bingung)
-        short_name = info.get('shortName', ticker)
+        # Untuk PE dan Revenue, kita tetap butuh .info (data fundamental)
+        # Kita bungkus try-except lagi di sini khusus fetching info
+        try:
+            info = stock.info
+            pe_ratio = info.get('trailingPE', None)
+            revenue = info.get('totalRevenue', 0)
+            short_name = info.get('shortName', ticker)
+        except:
+            # Jika gagal ambil info detail, isi dummy/default
+            pe_ratio = None
+            revenue = 0
+            short_name = ticker
 
-        data_list.append({
-            'Kode': ticker.replace('.JK', ''),
-            'Nama': short_name,
-            'Harga': price,
-            'P/E Ratio': pe_ratio,
-            'Revenue (Raw)': revenue, # Disimpan mentah dulu untuk sorting
-            'Market Cap': market_cap
-        })
-        print(f"✅ {ticker} berhasil.")
-        
+        # Pastikan data masuk hanya jika Harga ada (valid)
+        if price:
+            data_list.append({
+                'Kode': ticker.replace('.JK', ''),
+                'Nama': short_name,
+                'Harga': price,
+                'P/E Ratio': pe_ratio,
+                'Revenue (Raw)': revenue,
+                'Market Cap': market_cap
+            })
+            print(f"✅ {ticker} berhasil.")
+        else:
+            print(f"⚠️ {ticker} data kosong (skip).")
+            
     except Exception as e:
-        print(f"❌ {ticker} gagal: {e}")
+        print(f"❌ {ticker} gagal total: {e}")
+
+# ==========================================
+# 2. PENGECEKAN KEAMANAN (PENTING!)
+# ==========================================
+if len(data_list) == 0:
+    print("\n[ERROR FATAL] Tidak ada data yang berhasil diambil sama sekali.")
+    print("Kemungkinan IP Address Anda diblokir sementara oleh Yahoo Finance atau koneksi bermasalah.")
+    sys.exit() # Berhenti di sini, jangan lanjut ke bawah
 
 # Buat DataFrame
 df = pd.DataFrame(data_list)
 
 # ==========================================
-# 2. BERSIH-BERSIH DATA & FORMATTING
+# 3. FORMATTING & EXPORT
 # ==========================================
-
-# Fungsi untuk mengubah angka besar jadi Triliun (T) atau Miliar (M)
 def format_angka_besar(angka):
-    if not angka or angka == 0:
+    if not angka or pd.isna(angka) or angka == 0:
         return "0"
-    if angka >= 1_000_000_000_000: # Triliun
+    if angka >= 1_000_000_000_000:
         return f"{angka / 1_000_000_000_000:.2f} T"
-    elif angka >= 1_000_000_000:   # Miliar
+    elif angka >= 1_000_000_000:
         return f"{angka / 1_000_000_000:.2f} M"
     else:
         return f"{angka:,.0f}"
 
-# Terapkan format ke kolom baru untuk display
-df['Revenue (Display)'] = df['Revenue (Raw)'].apply(format_angka_besar)
-df['Market Cap (Display)'] = df['Market Cap'].apply(format_angka_besar)
+# Terapkan format (Gunakan .get agar aman jika kolom entah kenapa hilang)
+df['Revenue (Display)'] = df.get('Revenue (Raw)', pd.Series([0]*len(df))).apply(format_angka_besar)
+df['Market Cap (Display)'] = df.get('Market Cap', pd.Series([0]*len(df))).apply(format_angka_besar)
 
-# Urutkan berdasarkan Market Cap terbesar (Opsional)
-df = df.sort_values(by='Market Cap', ascending=False)
+# Sorting
+if 'Market Cap' in df.columns:
+    df = df.sort_values(by='Market Cap', ascending=False)
 
-# Siapkan kolom final untuk Excel
-cols_final = ['Kode', 'Nama', 'Harga', 'P/E Ratio', 'Revenue (Display)', 'Market Cap (Display)']
-df_final = df[cols_final]
-
-# ==========================================
-# 3. EXPORT KE EXCEL DENGAN WARNA
-# ==========================================
-filename = 'Rasio_PE_Revenue_Saham.xlsx'
+# Export
+filename = 'Rasio_PE_Revenue_Saham_Fixed.xlsx'
 writer = pd.ExcelWriter(filename, engine='xlsxwriter')
-df_final.to_excel(writer, sheet_name='Analisa', index=False)
+df.to_excel(writer, sheet_name='Analisa', index=False)
 
+# Format Excel (Warna-warni)
 workbook = writer.book
 worksheet = writer.sheets['Analisa']
+green_fmt = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
+red_fmt   = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
+yellow_fmt = workbook.add_format({'bg_color': '#FFEB9C', 'font_color': '#9C6500'})
 
-# Format Warna
-# Hijau untuk PE Rendah (< 10) -> Sering dianggap murah (Value Stock)
-green_format = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
-
-# Merah untuk PE Tinggi (> 25) -> Sering dianggap mahal (Growth Stock/Overvalued)
-red_format = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
-
-# Kuning untuk PE Minus (Rugi) atau None
-yellow_format = workbook.add_format({'bg_color': '#FFEB9C', 'font_color': '#9C6500'})
-
-# Format Header
-header_format = workbook.add_format({'bold': True, 'bg_color': '#DDEBF7', 'border': 1})
-for col_num, value in enumerate(df_final.columns.values):
-    worksheet.write(0, col_num, value, header_format)
-
-# Loop baris untuk Conditional Formatting Kolom P/E (Kolom D / Index 3)
-(max_row, max_col) = df_final.shape
-pe_col_idx = 3 # Index kolom P/E (0=Kode, 1=Nama, 2=Harga, 3=PE)
-pe_col_letter = 'D' # Kolom D di Excel
-
-for row in range(1, max_row + 1):
-    # Ambil nilai PE dari DataFrame (row-1 karena df index mulai 0)
-    pe_val = df_final.iloc[row-1]['P/E Ratio']
-    
-    cell_loc = f"{pe_col_letter}{row+1}" # Misal D2, D3
-    
-    if pd.isna(pe_val) or pe_val < 0:
-        # Jika Rugi (PE Minus) atau Data Kosong
-        worksheet.write(row, pe_col_idx, "N/A (Rugi)", yellow_format)
-    elif pe_val < 10:
-        # Murah (Hijau)
-        worksheet.write(row, pe_col_idx, pe_val, green_format)
-    elif pe_val > 25:
-        # Mahal (Merah)
-        worksheet.write(row, pe_col_idx, pe_val, red_format)
-    else:
-        # Netral (Tulis biasa)
-        worksheet.write(row, pe_col_idx, pe_val)
-
-# Auto-adjust lebar kolom biar rapi
-worksheet.set_column(0, 0, 10) # Kode
-worksheet.set_column(1, 1, 25) # Nama
-worksheet.set_column(4, 5, 15) # Revenue & Market Cap
+# Cari index kolom P/E Ratio
+try:
+    pe_col_idx = df.columns.get_loc("P/E Ratio")
+    # Loop baris data
+    for row_num in range(len(df)):
+        cell_val = df.iloc[row_num, pe_col_idx]
+        
+        # Logic Warna
+        excel_row = row_num + 1 # +1 karena header
+        if pd.isna(cell_val) or cell_val < 0:
+            worksheet.write(excel_row, pe_col_idx, "N/A", yellow_fmt)
+        elif cell_val < 10:
+            worksheet.write(excel_row, pe_col_idx, cell_val, green_fmt)
+        elif cell_val > 25:
+            worksheet.write(excel_row, pe_col_idx, cell_val, red_fmt)
+        else:
+            worksheet.write(excel_row, pe_col_idx, cell_val)
+except KeyError:
+    pass # Skip coloring if column missing
 
 writer.close()
-print(f"\nSelesai! File '{filename}' telah dibuat.")
+print(f"\nSelesai! File '{filename}' berhasil dibuat.")
