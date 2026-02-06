@@ -4,5 +4,7 @@ pandas
 plotly
 xlsxwriter
 matplotlib
+numpy
 
 openpyxl
+
