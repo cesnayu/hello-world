@@ -3,10 +3,9 @@ import pandas as pd
 import streamlit as st
 
 # ================= CONFIG =================
-st.set_page_config(page_title="PE & Revenue Screener", layout="wide")
-st.title("📊 PE Ratio & Revenue Screener")
+st.set_page_config(page_title="IHSG PE & Revenue Screener", layout="wide")
+st.title("📊 IHSG PE & Revenue Screener")
 
-# 👉 EDIT SAHAM DI SINI
 TICKERS = [
     "BBCA.JK",
     "BBRI.JK",
@@ -20,34 +19,41 @@ def get_pe_revenue(tickers):
     rows = []
 
     for ticker in tickers:
+        stock = yf.Ticker(ticker)
+
+        # -------- PRICE (fallback) --------
+        price = None
         try:
-            stock = yf.Ticker(ticker)
-            info = stock.info
+            info = stock.info or {}
+            price = (
+                info.get("currentPrice")
+                or info.get("regularMarketPrice")
+            )
+        except:
+            pass
 
-            # --- Price ---
-            price = info.get("currentPrice")
+        # -------- PE --------
+        pe = info.get("trailingPE") if info else None
 
-            # --- PE ---
-            pe = info.get("trailingPE")
-
-            # --- Revenue (Annual) ---
+        # -------- REVENUE (annual fallback) --------
+        revenue = None
+        try:
             fin = stock.financials
-            revenue = None
             if not fin.empty:
-                for col in fin.columns:
+                for col in fin.index:
                     if "Revenue" in col or "Sales" in col:
                         revenue = fin.loc[col].iloc[0]
                         break
+        except:
+            pass
 
-            rows.append({
-                "Ticker": ticker.replace(".JK", ""),
-                "Price": price,
-                "PE": pe,
-                "Revenue": revenue
-            })
-
-        except Exception as e:
-            print(f"Error {ticker}: {e}")
+        # 👉 tetap append walau ada None
+        rows.append({
+            "Ticker": ticker.replace(".JK", ""),
+            "Price": price,
+            "PE": pe,
+            "Revenue": revenue
+        })
 
     return pd.DataFrame(rows)
 
@@ -55,7 +61,7 @@ def get_pe_revenue(tickers):
 df = get_pe_revenue(TICKERS)
 
 if df.empty:
-    st.warning("Data tidak tersedia")
+    st.error("Yahoo Finance tidak mengembalikan data sama sekali")
 else:
     st.dataframe(
         df,
@@ -67,4 +73,4 @@ else:
         }
     )
 
-    st.caption("Source: Yahoo Finance | Annual Revenue | Trailing PE")
+    st.caption("Source: Yahoo Finance | PE bisa kosong jika EPS negatif / tidak tersedia")
