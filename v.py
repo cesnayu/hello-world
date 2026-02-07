@@ -157,13 +157,13 @@ if 'data_saham' in st.session_state:
     with fil1:
         pbv_range = st.slider(
             "Rentang PBV (x)", 
-            min_value=0.0, max_value=20.0, value=(0.0, 10.0), step=0.1
+            min_value=0.0, max_value=599.0, value=(0.0, 10.0), step=0.1
         )
         
     with fil2:
         per_range = st.slider(
             "Rentang PER (x)", 
-            min_value=0.0, max_value=50.0, value=(0.0, 30.0), step=0.5
+            min_value=0.0, max_value=599.0, value=(0.0, 30.0), step=0.5
         )
         
     with fil3:
