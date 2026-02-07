@@ -14,7 +14,7 @@ tickers = [
 ]
 
 # --- 2. CONFIG ---
-PERIOD = "3mo"
+PERIOD = "12mo"
 MA_WINDOW = 20
 STOCKS_PER_PAGE = 50  # Batasi 50 saham per halaman agar cepat
 COLS = 5 # 5 Kolom agar rapi
