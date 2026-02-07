@@ -142,13 +142,13 @@ if st.button("🚀 Analisa Saham"):
 
         st.divider()
 
-        # --- FORMATTING DATAFRAME AGAR CANTIK ---
+       # --- FORMATTING DATAFRAME (VERSI ANTI ERROR) ---
         st.subheader("📋 Tabel Detail")
         
-        # Penjelasan Kolom Posisi
-        st.info("💡 **Posisi Harga (%)**: 0% berarti harga sedang di titik terendah (Low), 100% berarti harga sedang di pucuk (High).")
+        # Penjelasan Kolom
+        st.info("💡 **Posisi Harga (%)**: 0% = Harga di Titik Terendah (Low), 100% = Harga di Pucuk (High).")
 
-        # Konfigurasi Kolom Streamlit
+        # Konfigurasi Kolom Streamlit (Ini yang menangani format angka & NaN)
         column_config = {
             "Ticker": st.column_config.TextColumn("Kode", width="small"),
             "Harga Saat Ini": st.column_config.NumberColumn("Harga", format="Rp %d"),
@@ -160,24 +160,13 @@ if st.button("🚀 Analisa Saham"):
                 min_value=0,
                 max_value=100,
             ),
-            "PBV (x)": st.column_config.NumberColumn("PBV", format="%.2fx"),
-            "PER (x)": st.column_config.NumberColumn("PER", format="%.2fx"),
+            "PBV (x)": st.column_config.NumberColumn("PBV", format="%.2fx"), # Streamlit otomatis handle jika data kosong
+            "PER (x)": st.column_config.NumberColumn("PER", format="%.2fx"), # Streamlit otomatis handle jika data kosong
         }
 
-        # Fungsi pewarnaan baris (Highlight PBV Murah & Mahal)
-        def highlight_valuation(val):
-            # Warna untuk PBV
-            if val < 1: return 'background-color: #d4edda; color: black' # Hijau (Murah)
-            elif val > 4: return 'background-color: #f8d7da; color: black' # Merah (Mahal)
-            return ''
-
-        # Tampilkan DataFrame
+        # Tampilkan DataFrame TANPA style.format yang bikin error
         st.dataframe(
-            df_result.style.format({
-                "PBV (x)": "{:.2f}",
-                "PER (x)": "{:.2f}",
-                "Posisi Harga (%)": "{:.1f}"
-            }), # .applymap(highlight_valuation, subset=['PBV (x)']), # Uncomment jika ingin warna sel spesifik
+            df_result,
             column_config=column_config,
             use_container_width=True,
             height=600,
