@@ -133,9 +133,18 @@ if st.button("🚀 Analisa Saham"):
             st.success("Data berhasil diambil!")
 
 # --- BAGIAN TAMPILAN (DILUAR IF BUTTON) ---
-# Logika: Cek apakah ada data di memori? Kalau ada, tampilkan (walau tombol ga diklik)
 if 'data_saham' in st.session_state:
-    df_result = st.session_state['data_saham'] # Ambil dari memori
+    # Ambil data dari memori
+    df_result = st.session_state['data_saham'].copy() # Pakai .copy() biar aman
+
+    # ==========================================
+    # 0. PEMBERSIHAN DATA (FIX TYPE ERROR DISINI)
+    # ==========================================
+    # Kita paksa kolom ini jadi angka. Kalau ada error/None, ubah jadi NaN (Not a Number)
+    cols_to_fix = ['PBV (x)', 'PER (x)', 'Posisi Harga (%)']
+    
+    for col in cols_to_fix:
+        df_result[col] = pd.to_numeric(df_result[col], errors='coerce')
 
     # ==========================================
     # 1. BAGIAN FILTERING
@@ -163,28 +172,25 @@ if 'data_saham' in st.session_state:
             min_value=0.0, max_value=100.0, value=(0.0, 100.0), step=5.0
         )
 
-    # PROSES PENYARINGAN
-    df_filtered = df_result.copy()
+    # PROSES PENYARINGAN (LOGIKA LEBIH AMAN)
+    # Kita buat masker boolean agar kodenya tidak kepanjangan dan error
+    
+    # 1. Masker untuk PBV (Harus Angka & Masuk Range)
+    mask_pbv = (df_result['PBV (x)'].notna()) & \
+               (df_result['PBV (x)'] >= pbv_range[0]) & \
+               (df_result['PBV (x)'] <= pbv_range[1])
 
-    # Filter PBV
-    df_filtered = df_filtered[
-        (df_filtered['PBV (x)'].notna()) & 
-        (df_filtered['PBV (x)'] >= pbv_range[0]) & 
-        (df_filtered['PBV (x)'] <= pbv_range[1])
-    ]
+    # 2. Masker untuk PER (Harus Angka & Masuk Range)
+    mask_per = (df_result['PER (x)'].notna()) & \
+               (df_result['PER (x)'] >= per_range[0]) & \
+               (df_result['PER (x)'] <= per_range[1])
 
-    # Filter PER
-    df_filtered = df_filtered[
-        (df_filtered['PER (x)'].notna()) & 
-        (df_filtered['PER (x)'] >= per_range[0]) & 
-        (df_filtered['PER (x)'] <= per_range[1])
-    ]
+    # 3. Masker untuk Posisi Harga
+    mask_pos = (df_result['Posisi Harga (%)'] >= pos_range[0]) & \
+               (df_result['Posisi Harga (%)'] <= pos_range[1])
 
-    # Filter Posisi Harga
-    df_filtered = df_filtered[
-        (df_filtered['Posisi Harga (%)'] >= pos_range[0]) & 
-        (df_filtered['Posisi Harga (%)'] <= pos_range[1])
-    ]
+    # Terapkan semua filter sekaligus
+    df_filtered = df_result[mask_pbv & mask_per & mask_pos]
 
     st.caption(f"Menampilkan **{len(df_filtered)}** saham dari total {len(df_result)} saham.")
 
@@ -197,7 +203,7 @@ if 'data_saham' in st.session_state:
         "Terendah (Sejak Jan 25)": st.column_config.NumberColumn("Low (Jan25)", format="Rp %d"),
         "Tertinggi (Sejak Jan 25)": st.column_config.NumberColumn("High (Jan25)", format="Rp %d"),
         "Posisi Harga (%)": st.column_config.ProgressColumn(
-            "Posisi (Low ke High)",
+            "Posisi",
             format="%.1f%%",
             min_value=0,
             max_value=100,
