@@ -119,29 +119,100 @@ def get_stock_data(tickers_input):
     return pd.DataFrame(results), None
 
 # --- TOMBOL EKSEKUSI ---
+# --- TOMBOL EKSEKUSI ---
 if st.button("🚀 Analisa Saham"):
     df_result, error = get_stock_data(input_saham)
     
     if error:
         st.error(error)
     else:
-        st.success("Data berhasil diambil!")
-        
-        # --- METRIK RINGKASAN ---
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Saham Dianalisa", len(df_result))
-        with col2:
-            # Saham dengan PBV Terendah
-            min_pbv = df_result.loc[df_result['PBV (x)'].idxmin()]
-            st.metric("PBV Terendah", f"{min_pbv['Ticker']}", f"{min_pbv['PBV (x)']:.2f}x")
-        with col3:
-            # Saham yang harganya paling dekat dengan Low (Diskon)
-            most_discount = df_result.loc[df_result['Posisi Harga (%)'].idxmin()]
-            st.metric("Paling Dekat Low", f"{most_discount['Ticker']}", f"Posisi: {most_discount['Posisi Harga (%)']:.1f}%")
-
+        # ==========================================
+        # 1. BAGIAN FILTERING (BARU DITAMBAHKAN)
+        # ==========================================
         st.divider()
+        st.subheader("🔍 Filter Data")
+        
+        # Buat 3 Kolom untuk kontrol filter
+        fil1, fil2, fil3 = st.columns(3)
+        
+        with fil1:
+            # Filter PBV (Default 0 - 100)
+            pbv_range = st.slider(
+                "Rentang PBV (x)", 
+                min_value=0.0, max_value=20.0, value=(0.0, 10.0), step=0.1
+            )
+            
+        with fil2:
+            # Filter PER (Default 0 - 100)
+            per_range = st.slider(
+                "Rentang PER (x)", 
+                min_value=0.0, max_value=50.0, value=(0.0, 30.0), step=0.5
+            )
+            
+        with fil3:
+            # Filter Posisi Harga (Misal mau cari yg diskon < 20%)
+            pos_range = st.slider(
+                "Posisi Harga (%)", 
+                min_value=0.0, max_value=100.0, value=(0.0, 100.0), step=5.0
+            )
 
+        # PROSES PENYARINGAN DATA FRAME
+        # Kita copy dulu biar data asli aman
+        df_filtered = df_result.copy()
+
+        # 1. Filter PBV (Pastikan tidak NaN/Kosong)
+        df_filtered = df_filtered[
+            (df_filtered['PBV (x)'].notna()) & 
+            (df_filtered['PBV (x)'] >= pbv_range[0]) & 
+            (df_filtered['PBV (x)'] <= pbv_range[1])
+        ]
+
+        # 2. Filter PER (Pastikan tidak NaN/Kosong)
+        df_filtered = df_filtered[
+            (df_filtered['PER (x)'].notna()) & 
+            (df_filtered['PER (x)'] >= per_range[0]) & 
+            (df_filtered['PER (x)'] <= per_range[1])
+        ]
+
+        # 3. Filter Posisi Harga
+        df_filtered = df_filtered[
+            (df_filtered['Posisi Harga (%)'] >= pos_range[0]) & 
+            (df_filtered['Posisi Harga (%)'] <= pos_range[1])
+        ]
+
+        # Tampilkan Jumlah Data setelah difilter
+        st.caption(f"Menampilkan **{len(df_filtered)}** saham dari total {len(df_result)} saham.")
+
+        # ==========================================
+        # 2. TAMPILKAN TABEL (DATA SUDAH DIFILTER)
+        # ==========================================
+        
+        # Konfigurasi Kolom
+        column_config = {
+            "Ticker": st.column_config.TextColumn("Kode", width="small"),
+            "Harga Saat Ini": st.column_config.NumberColumn("Harga", format="Rp %d"),
+            "Terendah (Sejak Jan 25)": st.column_config.NumberColumn("Low (Jan25)", format="Rp %d"),
+            "Tertinggi (Sejak Jan 25)": st.column_config.NumberColumn("High (Jan25)", format="Rp %d"),
+            "Posisi Harga (%)": st.column_config.ProgressColumn(
+                "Posisi (Low ke High)",
+                format="%.1f%%",
+                min_value=0,
+                max_value=100,
+            ),
+            "PBV (x)": st.column_config.NumberColumn("PBV", format="%.2fx"),
+            "PER (x)": st.column_config.NumberColumn("PER", format="%.2fx"),
+        }
+
+        if not df_filtered.empty:
+            st.dataframe(
+                df_filtered,
+                column_config=column_config,
+                use_container_width=True,
+                height=500,
+                hide_index=True
+            )
+        else:
+            st.warning("⚠️ Tidak ada saham yang sesuai dengan filter di atas. Coba perlebar rentangnya.")
        # --- FORMATTING DATAFRAME (VERSI ANTI ERROR) ---
         st.subheader("📋 Tabel Detail")
         
