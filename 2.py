@@ -49,7 +49,8 @@ with st.sidebar:
     
     st.divider()
     if st.button("🔄 Update Grafik"):
-        st.experimental_rerun()
+        st.rerun()
+
 
 # ==========================================
 # 3. FUNGSI PENGOLAH DATA
