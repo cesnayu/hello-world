@@ -3,50 +3,23 @@ import yfinance as yf
 import pandas as pd
 
 # --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="Custom Stock Screener", layout="wide")
+st.set_page_config(page_title="Dynamic Stock Screener", layout="wide")
 
-st.title("🎯 Dashboard Screening Fundamental (Kriteria Sendiri)")
-st.markdown("Masukkan standar angka yang kamu mau (ketik manual), sistem akan mencari saham yang lolos kriteria tersebut.")
-
-# --- SIDEBAR: INPUT KRITERIA (ANGKA MANUAL) ---
-st.sidebar.header("⚙️ Tentukan Standar Kamu")
-st.sidebar.caption("Ketik angka batas yang kamu inginkan.")
-
-# 1. Target P/E Ratio (Maksimal)
-target_pe = st.sidebar.number_input(
-    "Maksimal P/E Ratio (x)", 
-    min_value=0.0, max_value=100.0, value=15.0, step=0.1,
-    help="Saham dianggap murah jika P/E di bawah angka ini."
-)
-
-# 2. Target P/S Ratio (Maksimal)
-target_ps = st.sidebar.number_input(
-    "Maksimal P/S Ratio (x)", 
-    min_value=0.0, max_value=5000.0, value=2.0, step=0.1,
-    help="Saham dianggap murah jika P/S di bawah angka ini."
-)
-
-# 3. Target ROE (Minimal)
-target_roe = st.sidebar.number_input(
-    "Minimal ROE (%)", 
-    min_value=0.0, max_value=100.0, value=10.0, step=0.5,
-    help="Perusahaan dianggap profitabel jika ROE di atas angka ini."
-)
-
-# 4. Target DER (Maksimal)
-target_der = st.sidebar.number_input(
-    "Maksimal DER / Utang (%)", 
-    min_value=0.0, max_value=500.0, value=100.0, step=10.0,
-    help="Perusahaan dianggap aman jika Utang di bawah angka ini."
-)
+st.title("🔍 Search First, Filter Later")
+st.markdown("""
+**Alur Kerja:**
+1. Masukkan list saham & Klik **"Ambil Data"**.
+2. Lihat range data (Min/Max) yang muncul.
+3. Atur filter di panel bawah untuk menandai mana yang **Lolos (Hijau)** dan **Gagal (Merah)**.
+""")
 
 # --- FUNGSI AMBIL DATA ---
-def get_data(tickers_raw):
+def get_fundamental_data(tickers_raw):
     tickers_list = [x.strip().upper() for x in tickers_raw.split(',')]
     tickers_fixed = [f"{t}.JK" if not t.endswith(".JK") else t for t in tickers_list]
     
     data = []
-    progress_bar = st.progress(0, text="Sedang mengambil data...")
+    progress_bar = st.progress(0, text="Mengambil data...")
     
     for i, ticker in enumerate(tickers_fixed):
         try:
@@ -55,142 +28,141 @@ def get_data(tickers_raw):
             stock = yf.Ticker(ticker)
             info = stock.info
             
-            # Ambil data (Handle jika kosong)
-            pe = info.get('trailingPE')
-            ps = info.get('priceToSalesTrailing12Months')
-            roe = info.get('returnOnEquity')
-            der = info.get('debtToEquity')
-            eps = info.get('trailingEps')
-            price = info.get('currentPrice')
-            
-            # Konversi ROE ke Persen
-            if roe is not None: roe = roe * 100
-
-            # Hitung Skor Kelulusan (Berapa kriteria yang lolos?)
-            score = 0
-            status_pe = "❌"
-            status_roe = "❌"
-            
-            # Cek P/E
-            if pe and pe <= target_pe: 
-                score += 1
-                status_pe = "✅"
-                
-            # Cek P/S
-            if ps and ps <= target_ps: 
-                score += 1
-                
-            # Cek ROE
-            if roe and roe >= target_roe: 
-                score += 1
-                status_roe = "✅"
-                
-            # Cek DER
-            if der and der <= target_der: 
-                score += 1
-
+            # Ambil data point
             data.append({
                 'Kode': ticker.replace('.JK', ''),
-                'Harga': price,
-                'Skor (Max 4)': score, # Total kriteria yang terpenuhi
-                'P/E Ratio (x)': pe,
-                'P/S Ratio (x)': ps,
-                'ROE (%)': roe,
-                'DER (%)': der,
-                'EPS (Rp)': eps
+                'Harga': info.get('currentPrice'),
+                'P/E Ratio (x)': info.get('trailingPE'),
+                'P/S Ratio (x)': info.get('priceToSalesTrailing12Months'),
+                'ROE (%)': info.get('returnOnEquity', 0) * 100 if info.get('returnOnEquity') else None,
+                'DER (%)': info.get('debtToEquity'),
+                'EPS (Rp)': info.get('trailingEps')
             })
-            
         except:
             continue
-            
+
     progress_bar.empty()
     return pd.DataFrame(data)
 
-# --- UI UTAMA ---
-default_tickers = "BBCA, BBRI, BMRI, BBNI, ASII, TLKM, UNVR, ICBP, ADRO, PTBA, ITMG, GOTO, SIDO"
-input_saham = st.text_area("Masukkan Kode Saham:", value=default_tickers)
+# --- BAGIAN 1: INPUT & SEARCH ---
+default_tickers = "BBCA, BBRI, BMRI, BBNI, ASII, TLKM, UNVR, ICBP, ADRO, PTBA, GOTO, SIDO"
+input_saham = st.text_area("1️⃣ Masukkan Daftar Saham:", value=default_tickers)
 
-if st.button("🔍 Cek Kriteria Saya"):
+# Tombol Search
+if st.button("🚀 Ambil Data Mentah"):
     if not input_saham:
         st.warning("Masukkan kode saham dulu.")
     else:
-        df = get_data(input_saham)
-        
-        if not df.empty:
-            # Urutkan berdasarkan SKOR TERTINGGI (Paling sesuai kriteria kamu)
-            df = df.sort_values(by=['Skor (Max 4)', 'ROE (%)'], ascending=[False, False])
-            
-            st.success(f"Berhasil menganalisa {len(df)} saham berdasarkan kriteria kamu.")
-            
-            # --- 1. TAMPILAN SCORE CARD ---
-            st.subheader("🏆 Saham Paling Lolos Kriteria")
-            st.caption(f"Kriteria Kamu: P/E < {target_pe}, ROE > {target_roe}%, DER < {target_der}%, P/S < {target_ps}")
-            
-            # Highlight Warna Warni berdasarkan Kriteria User
-            def highlight_custom_rules(row):
-                styles = [''] * len(row)
-                
-                # Index kolom di DataFrame (sesuaikan manual atau pakai nama kolom)
-                # Kita pakai logika sederhana: Buat styler function terpisah per kolom
-                return styles
-
-            # Konfigurasi Kolom
-            column_config = {
-                "Kode": st.column_config.TextColumn("Ticker", width="small"),
-                "Skor (Max 4)": st.column_config.ProgressColumn(
-                    "Kecocokan", 
-                    format="%d/4", 
-                    min_value=0, 
-                    max_value=4,
-                    help="Berapa banyak kriteria kamu yang terpenuhi?"
-                ),
-                "P/E Ratio (x)": st.column_config.NumberColumn("P/E", format="%.2fx"),
-                "P/S Ratio (x)": st.column_config.NumberColumn("P/S", format="%.2fx"),
-                "ROE (%)": st.column_config.NumberColumn("ROE", format="%.2f%%"),
-                "DER (%)": st.column_config.NumberColumn("DER", format="%.2f%%"),
-            }
-
-            # --- LOGIC WARNA BARIS ---
-            # Kita warnai background cell Hijau jika lolos kriteria user, Merah jika gagal
-            
-            def color_pe(val):
-                if pd.isna(val): return ''
-                return 'background-color: #d4edda; color: black' if val <= target_pe else 'background-color: #f8d7da; color: black'
-
-            def color_ps(val):
-                if pd.isna(val): return ''
-                return 'background-color: #d4edda; color: black' if val <= target_ps else 'background-color: #f8d7da; color: black'
-
-            def color_roe(val):
-                if pd.isna(val): return ''
-                return 'background-color: #d4edda; color: black' if val >= target_roe else 'background-color: #f8d7da; color: black'
-
-            def color_der(val):
-                if pd.isna(val): return ''
-                return 'background-color: #d4edda; color: black' if val <= target_der else 'background-color: #f8d7da; color: black'
-
-            # Apply Style
-            styled_df = df.style.applymap(color_pe, subset=['P/E Ratio (x)']) \
-                                .applymap(color_ps, subset=['P/S Ratio (x)']) \
-                                .applymap(color_roe, subset=['ROE (%)']) \
-                                .applymap(color_der, subset=['DER (%)']) \
-                                .format("{:.2f}", subset=['P/E Ratio (x)', 'P/S Ratio (x)', 'ROE (%)', 'DER (%)', 'EPS (Rp)'])
-
-            st.dataframe(
-                styled_df,
-                column_config=column_config,
-                use_container_width=True,
-                height=600,
-                hide_index=True
-            )
-            
-            # Penjelasan Warna
-            st.info("""
-            **Cara Baca Tabel:**
-            * 🟩 **Hijau:** Angka masuk dalam kriteria yang kamu ketik di sidebar.
-            * 🟥 **Merah:** Angka tidak lolos kriteria kamu.
-            * **Skor 4/4:** Artinya saham ini sempurna sesuai keinginanmu.
-            """)
-            
+        # Ambil data dan simpan ke Session State agar tidak hilang saat filter digeser
+        df_raw = get_fundamental_data(input_saham)
+        if not df_raw.empty:
+            st.session_state['data_saham'] = df_raw
+            st.success(f"Berhasil mengambil data {len(df_raw)} saham! Silakan atur filter di bawah.")
         else:
             st.error("Data tidak ditemukan.")
+
+# --- BAGIAN 2: TAMPILAN & FILTER (Hanya muncul jika data sudah ada) ---
+if 'data_saham' in st.session_state:
+    df = st.session_state['data_saham']
+    
+    st.divider()
+    st.header("2️⃣ Atur Filter & Standar Kamu")
+    
+    # Hitung Statistik Sederhana untuk Referensi User
+    # Agar user tau range datanya dari mana sampai mana
+    col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+    
+    with col_stat1:
+        min_pe = df['P/E Ratio (x)'].min()
+        max_pe = df['P/E Ratio (x)'].max()
+        st.info(f"**Range P/E Data Ini:**\n{min_pe:.2f}x s/d {max_pe:.2f}x")
+        
+        # Input Filter P/E
+        filter_pe = st.number_input("Max P/E yg diinginkan:", value=15.0, step=0.5)
+
+    with col_stat2:
+        min_roe = df['ROE (%)'].min()
+        max_roe = df['ROE (%)'].max()
+        st.info(f"**Range ROE Data Ini:**\n{min_roe:.2f}% s/d {max_roe:.2f}%")
+        
+        # Input Filter ROE
+        filter_roe = st.number_input("Min ROE yg diinginkan:", value=10.0, step=0.5)
+
+    with col_stat3:
+        min_der = df['DER (%)'].min()
+        max_der = df['DER (%)'].max()
+        st.info(f"**Range DER Data Ini:**\n{min_der:.2f}% s/d {max_der:.2f}%")
+        
+        # Input Filter DER
+        filter_der = st.number_input("Max DER yg diinginkan:", value=100.0, step=10.0)
+
+    with col_stat4:
+        min_ps = df['P/S Ratio (x)'].min()
+        max_ps = df['P/S Ratio (x)'].max()
+        st.info(f"**Range P/S Data Ini:**\n{min_ps:.2f}x s/d {max_ps:.2f}x")
+        
+        # Input Filter P/S
+        filter_ps = st.number_input("Max P/S yg diinginkan:", value=2.0, step=0.1)
+
+    # --- LOGIKA PEWARNAAN TABEL ---
+    # Fungsi ini akan berjalan ulang setiap kali kamu ubah angka di atas
+    def style_dataframe(row):
+        styles = [''] * len(row)
+        
+        # Index Kolom (Sesuaikan jika urutan berubah)
+        # 0:Kode, 1:Harga, 2:PE, 3:PS, 4:ROE, 5:DER, 6:EPS
+        
+        # Rule P/E (Kolom index 2) - Makin Rendah Bagus
+        pe_val = row['P/E Ratio (x)']
+        if pd.notna(pe_val):
+            color = '#d4edda' if pe_val <= filter_pe else '#f8d7da' # Hijau jika <= Filter
+            styles[2] = f'background-color: {color}; color: black'
+
+        # Rule P/S (Kolom index 3) - Makin Rendah Bagus
+        ps_val = row['P/S Ratio (x)']
+        if pd.notna(ps_val):
+            color = '#d4edda' if ps_val <= filter_ps else '#f8d7da'
+            styles[3] = f'background-color: {color}; color: black'
+
+        # Rule ROE (Kolom index 4) - Makin TINGGI Bagus
+        roe_val = row['ROE (%)']
+        if pd.notna(roe_val):
+            color = '#d4edda' if roe_val >= filter_roe else '#f8d7da' # Hijau jika >= Filter
+            styles[4] = f'background-color: {color}; color: black'
+
+        # Rule DER (Kolom index 5) - Makin Rendah Bagus
+        der_val = row['DER (%)']
+        if pd.notna(der_val):
+            color = '#d4edda' if der_val <= filter_der else '#f8d7da'
+            styles[5] = f'background-color: {color}; color: black'
+
+        return styles
+
+    # Tampilkan Tabel
+    st.subheader("📊 Hasil Screening")
+    
+    # Hitung Skor Kelulusan (Opsional: buat sorting)
+    # Kita bikin kolom baru temporary untuk sorting, tapi gak ditampilkan
+    df_display = df.copy()
+    df_display['Score'] = (
+        (df['P/E Ratio (x)'] <= filter_pe).astype(int) + 
+        (df['ROE (%)'] >= filter_roe).astype(int) + 
+        (df['DER (%)'] <= filter_der).astype(int) +
+        (df['P/S Ratio (x)'] <= filter_ps).astype(int)
+    )
+    
+    # Sort biar yang paling hijau ada di atas
+    df_display = df_display.sort_values(by=['Score', 'ROE (%)'], ascending=[False, False])
+    
+    # Hapus kolom score biar tabel bersih (atau tampilkan kalau mau)
+    df_final = df_display.drop(columns=['Score'])
+
+    st.dataframe(
+        df_final.style.apply(style_dataframe, axis=1)
+                  .format("{:.2f}", subset=['P/E Ratio (x)', 'P/S Ratio (x)', 'ROE (%)', 'DER (%)', 'EPS (Rp)']),
+        use_container_width=True,
+        height=600,
+        hide_index=True
+    )
+    
+    st.caption("Baris paling atas adalah yang paling banyak memenuhi kriteria kamu.")
