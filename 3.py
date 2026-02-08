@@ -22,7 +22,7 @@ target_pe = st.sidebar.number_input(
 # 2. Target P/S Ratio (Maksimal)
 target_ps = st.sidebar.number_input(
     "Maksimal P/S Ratio (x)", 
-    min_value=0.0, max_value=50.0, value=2.0, step=0.1,
+    min_value=0.0, max_value=5000.0, value=2.0, step=0.1,
     help="Saham dianggap murah jika P/S di bawah angka ini."
 )
 
