@@ -3,144 +3,194 @@ import yfinance as yf
 import pandas as pd
 
 # --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="Valuasi Saham (Input Manual)", layout="wide")
+st.set_page_config(page_title="Custom Stock Screener", layout="wide")
 
-st.title("🧮 Smart Valuation Dashboard (Input Presisi)")
-st.markdown("""
-Masukkan asumsi valuasi dengan mengetik angka secara manual (bukan digeser).
-* **Bank:** Menggunakan DDM.
-* **Non-Bank:** Menggunakan DCF.
-""")
+st.title("🎯 Dashboard Screening Fundamental (Kriteria Sendiri)")
+st.markdown("Masukkan standar angka yang kamu mau (ketik manual), sistem akan mencari saham yang lolos kriteria tersebut.")
 
-# --- SIDEBAR: ASUMSI (INPUT ANGKA MANUAL) ---
-st.sidebar.header("⚙️ Input Asumsi (%)")
-st.sidebar.info("Ketik angka persentase di bawah ini.")
+# --- SIDEBAR: INPUT KRITERIA (ANGKA MANUAL) ---
+st.sidebar.header("⚙️ Tentukan Standar Kamu")
+st.sidebar.caption("Ketik angka batas yang kamu inginkan.")
 
-# Menggunakan number_input pengganti slider
-# step=0.1 artinya setiap klik panah naik/turun 0.1
-# format="%.2f" artinya menampilkan 2 angka belakang koma
-
-discount_rate_pct = st.sidebar.number_input(
-    "Discount Rate / Cost of Equity (%)", 
-    min_value=1.0, 
-    max_value=50.0, 
-    value=12.0, 
-    step=0.1,
-    format="%.2f",
-    help="Return minimal yang diharapkan investor."
+# 1. Target P/E Ratio (Maksimal)
+target_pe = st.sidebar.number_input(
+    "Maksimal P/E Ratio (x)", 
+    min_value=0.0, max_value=100.0, value=15.0, step=0.1,
+    help="Saham dianggap murah jika P/E di bawah angka ini."
 )
 
-growth_rate_pct = st.sidebar.number_input(
-    "Growth Rate Tahunan (%)", 
-    min_value=-10.0, 
-    max_value=50.0, 
-    value=5.0, 
-    step=0.1,
-    format="%.2f",
-    help="Estimasi pertumbuhan laba/cashflow per tahun."
+# 2. Target P/S Ratio (Maksimal)
+target_ps = st.sidebar.number_input(
+    "Maksimal P/S Ratio (x)", 
+    min_value=0.0, max_value=50.0, value=2.0, step=0.1,
+    help="Saham dianggap murah jika P/S di bawah angka ini."
 )
 
-terminal_growth_pct = st.sidebar.number_input(
-    "Terminal Growth (Khusus DCF) (%)", 
-    min_value=0.0, 
-    max_value=10.0, 
-    value=2.5, 
-    step=0.1,
-    format="%.2f",
-    help="Pertumbuhan jangka panjang selamanya (biasanya ikut inflasi 2-3%)."
+# 3. Target ROE (Minimal)
+target_roe = st.sidebar.number_input(
+    "Minimal ROE (%)", 
+    min_value=0.0, max_value=100.0, value=10.0, step=0.5,
+    help="Perusahaan dianggap profitabel jika ROE di atas angka ini."
 )
 
-# Konversi ke desimal untuk rumus matematika
-disc_rate = discount_rate_pct / 100
-growth_r = growth_rate_pct / 100
-term_growth = terminal_growth_pct / 100
+# 4. Target DER (Maksimal)
+target_der = st.sidebar.number_input(
+    "Maksimal DER / Utang (%)", 
+    min_value=0.0, max_value=500.0, value=100.0, step=10.0,
+    help="Perusahaan dianggap aman jika Utang di bawah angka ini."
+)
 
-# --- LIST BANK ---
-LIST_BANK = ['BBCA', 'BBRI', 'BMRI', 'BBNI', 'BRIS', 'BBTN', 'ARTO', 'BDMN', 'BNGA', 'PNBN']
-
-# --- FUNGSI HITUNG ---
-def calculate_smart_valuation(ticker_raw, disc, grow, term):
-    ticker_clean = ticker_raw.upper().replace('.JK', '').strip()
-    ticker_yf = f"{ticker_clean}.JK"
+# --- FUNGSI AMBIL DATA ---
+def get_data(tickers_raw):
+    tickers_list = [x.strip().upper() for x in tickers_raw.split(',')]
+    tickers_fixed = [f"{t}.JK" if not t.endswith(".JK") else t for t in tickers_list]
     
-    try:
-        stock = yf.Ticker(ticker_yf)
-        info = stock.info
-        
-        if not info: return None, "Data Tidak Ditemukan"
+    data = []
+    progress_bar = st.progress(0, text="Sedang mengambil data...")
+    
+    for i, ticker in enumerate(tickers_fixed):
+        try:
+            progress_bar.progress(int((i / len(tickers_fixed)) * 100), text=f"Cek {ticker}...")
             
-        curr_price = info.get('currentPrice') or info.get('regularMarketPreviousClose')
-        if not curr_price: return None, "Harga saham kosong"
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            
+            # Ambil data (Handle jika kosong)
+            pe = info.get('trailingPE')
+            ps = info.get('priceToSalesTrailing12Months')
+            roe = info.get('returnOnEquity')
+            der = info.get('debtToEquity')
+            eps = info.get('trailingEps')
+            price = info.get('currentPrice')
+            
+            # Konversi ROE ke Persen
+            if roe is not None: roe = roe * 100
 
-        # --- LOGIKA PEMILIHAN METODE ---
-        is_bank = ticker_clean in LIST_BANK
-        method = "DDM (Dividen)" if is_bank else "DCF (Cashflow)"
-        
-        fair_value = 0
-        metric_used = 0 
-        
-        # 1. METODE DDM (BANK)
-        if is_bank:
-            if disc <= grow:
-                return None, "Error: Discount Rate harus > Growth Rate"
+            # Hitung Skor Kelulusan (Berapa kriteria yang lolos?)
+            score = 0
+            status_pe = "❌"
+            status_roe = "❌"
+            
+            # Cek P/E
+            if pe and pe <= target_pe: 
+                score += 1
+                status_pe = "✅"
+                
+            # Cek P/S
+            if ps and ps <= target_ps: 
+                score += 1
+                
+            # Cek ROE
+            if roe and roe >= target_roe: 
+                score += 1
+                status_roe = "✅"
+                
+            # Cek DER
+            if der and der <= target_der: 
+                score += 1
 
-            last_dividend = info.get('dividendRate')
-            if not last_dividend: return None, "Tidak ada Dividen (DDM Gagal)"
+            data.append({
+                'Kode': ticker.replace('.JK', ''),
+                'Harga': price,
+                'Skor (Max 4)': score, # Total kriteria yang terpenuhi
+                'P/E Ratio (x)': pe,
+                'P/S Ratio (x)': ps,
+                'ROE (%)': roe,
+                'DER (%)': der,
+                'EPS (Rp)': eps
+            })
             
-            metric_used = last_dividend
-            next_dividend = last_dividend * (1 + grow)
-            fair_value = next_dividend / (disc - grow)
-
-        # 2. METODE DCF (NON-BANK)
-        else:
-            shares = info.get('sharesOutstanding')
-            fcf = info.get('freeCashflow')
+        except:
+            continue
             
-            # Fallback jika FCF kosong
-            if fcf is None:
-                ocf = info.get('operatingCashflow')
-                if ocf: fcf = ocf * 0.7 
-            
-            if not fcf or not shares: return None, "Data Cashflow/Shares Kosong"
-            
-            metric_used = fcf / 1_000_000_000 # Miliar
-            
-            # Proyeksi
-            future_fcfs = [fcf * ((1 + grow) ** i) for i in range(1, 6)]
-            term_val = (future_fcfs[-1] * (1 + term)) / (disc - term)
-            
-            pv_total = sum([val / ((1 + disc) ** (i + 1)) for i, val in enumerate(future_fcfs)])
-            pv_total += term_val / ((1 + disc) ** 5)
-            
-            cash = info.get('totalCash', 0) or 0
-            debt = info.get('totalDebt', 0) or 0
-            
-            equity_val = pv_total + cash - debt
-            fair_value = equity_val / shares
-
-        # Hitung Potensi
-        upside = ((fair_value - curr_price) / curr_price) * 100
-        
-        return {
-            'Ticker': ticker_clean,
-            'Metode': method,
-            'Harga Pasar': curr_price,
-            'Nilai Wajar': fair_value,
-            'Potensi (%)': upside,
-            'Basis Data': metric_used
-        }, None
-
-    except Exception as e:
-        return None, str(e)
+    progress_bar.empty()
+    return pd.DataFrame(data)
 
 # --- UI UTAMA ---
-default_list = "BMRI, BBRI, BBCA, TLKM, ASII, UNVR, ADRO"
-input_user = st.text_area("Masukkan Saham:", value=default_list)
+default_tickers = "BBCA, BBRI, BMRI, BBNI, ASII, TLKM, UNVR, ICBP, ADRO, PTBA, ITMG, GOTO, SIDO"
+input_saham = st.text_area("Masukkan Kode Saham:", value=default_tickers)
 
-if st.button("🚀 Hitung Valuasi"):
-    tickers = [x.strip() for x in input_user.split(',')]
-    
-    results = []
-    errors = []
-    
-    bar = st.progress(0, "Menganalisa...")
+if st.button("🔍 Cek Kriteria Saya"):
+    if not input_saham:
+        st.warning("Masukkan kode saham dulu.")
+    else:
+        df = get_data(input_saham)
+        
+        if not df.empty:
+            # Urutkan berdasarkan SKOR TERTINGGI (Paling sesuai kriteria kamu)
+            df = df.sort_values(by=['Skor (Max 4)', 'ROE (%)'], ascending=[False, False])
+            
+            st.success(f"Berhasil menganalisa {len(df)} saham berdasarkan kriteria kamu.")
+            
+            # --- 1. TAMPILAN SCORE CARD ---
+            st.subheader("🏆 Saham Paling Lolos Kriteria")
+            st.caption(f"Kriteria Kamu: P/E < {target_pe}, ROE > {target_roe}%, DER < {target_der}%, P/S < {target_ps}")
+            
+            # Highlight Warna Warni berdasarkan Kriteria User
+            def highlight_custom_rules(row):
+                styles = [''] * len(row)
+                
+                # Index kolom di DataFrame (sesuaikan manual atau pakai nama kolom)
+                # Kita pakai logika sederhana: Buat styler function terpisah per kolom
+                return styles
+
+            # Konfigurasi Kolom
+            column_config = {
+                "Kode": st.column_config.TextColumn("Ticker", width="small"),
+                "Skor (Max 4)": st.column_config.ProgressColumn(
+                    "Kecocokan", 
+                    format="%d/4", 
+                    min_value=0, 
+                    max_value=4,
+                    help="Berapa banyak kriteria kamu yang terpenuhi?"
+                ),
+                "P/E Ratio (x)": st.column_config.NumberColumn("P/E", format="%.2fx"),
+                "P/S Ratio (x)": st.column_config.NumberColumn("P/S", format="%.2fx"),
+                "ROE (%)": st.column_config.NumberColumn("ROE", format="%.2f%%"),
+                "DER (%)": st.column_config.NumberColumn("DER", format="%.2f%%"),
+            }
+
+            # --- LOGIC WARNA BARIS ---
+            # Kita warnai background cell Hijau jika lolos kriteria user, Merah jika gagal
+            
+            def color_pe(val):
+                if pd.isna(val): return ''
+                return 'background-color: #d4edda; color: black' if val <= target_pe else 'background-color: #f8d7da; color: black'
+
+            def color_ps(val):
+                if pd.isna(val): return ''
+                return 'background-color: #d4edda; color: black' if val <= target_ps else 'background-color: #f8d7da; color: black'
+
+            def color_roe(val):
+                if pd.isna(val): return ''
+                return 'background-color: #d4edda; color: black' if val >= target_roe else 'background-color: #f8d7da; color: black'
+
+            def color_der(val):
+                if pd.isna(val): return ''
+                return 'background-color: #d4edda; color: black' if val <= target_der else 'background-color: #f8d7da; color: black'
+
+            # Apply Style
+            styled_df = df.style.applymap(color_pe, subset=['P/E Ratio (x)']) \
+                                .applymap(color_ps, subset=['P/S Ratio (x)']) \
+                                .applymap(color_roe, subset=['ROE (%)']) \
+                                .applymap(color_der, subset=['DER (%)']) \
+                                .format("{:.2f}", subset=['P/E Ratio (x)', 'P/S Ratio (x)', 'ROE (%)', 'DER (%)', 'EPS (Rp)'])
+
+            st.dataframe(
+                styled_df,
+                column_config=column_config,
+                use_container_width=True,
+                height=600,
+                hide_index=True
+            )
+            
+            # Penjelasan Warna
+            st.info("""
+            **Cara Baca Tabel:**
+            * 🟩 **Hijau:** Angka masuk dalam kriteria yang kamu ketik di sidebar.
+            * 🟥 **Merah:** Angka tidak lolos kriteria kamu.
+            * **Skor 4/4:** Artinya saham ini sempurna sesuai keinginanmu.
+            """)
+            
+        else:
+            st.error("Data tidak ditemukan.")
