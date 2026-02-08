@@ -13,35 +13,68 @@ st.markdown("""
 3. Atur filter di panel bawah untuk menandai mana yang **Lolos (Hijau)** dan **Gagal (Merah)**.
 """)
 
-# --- FUNGSI AMBIL DATA ---
+# --- FUNGSI AMBIL DATA (YANG SUDAH DIPERBAIKI) ---
 def get_fundamental_data(tickers_raw):
+    # Bersihkan input
     tickers_list = [x.strip().upper() for x in tickers_raw.split(',')]
-    tickers_fixed = [f"{t}.JK" if not t.endswith(".JK") else t for t in tickers_list]
+    tickers_fixed = []
+    for t in tickers_list:
+        # Hapus spasi aneh dan pastikan format .JK
+        clean_t = t.replace(' ', '')
+        if not clean_t.endswith(".JK"):
+            tickers_fixed.append(f"{clean_t}.JK")
+        else:
+            tickers_fixed.append(clean_t)
     
     data = []
+    errors = [] # Untuk menampung pesan error
+    
     progress_bar = st.progress(0, text="Mengambil data...")
     
+    # Header palsu agar dikira browser manusia (Anti-Blokir Yahoo)
+    requests_headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+
     for i, ticker in enumerate(tickers_fixed):
         try:
-            progress_bar.progress(int((i / len(tickers_fixed)) * 100), text=f"Cek {ticker}...")
+            progress_bar.progress(int((i / len(tickers_fixed)) * 100), text=f"Menganalisa {ticker}...")
             
-            stock = yf.Ticker(ticker)
+            # Trik: Gunakan Session khusus biar lebih kebal blokir
+            stock = yf.Ticker(ticker, session=None) 
+            
+            # Coba ambil info
             info = stock.info
             
-            # Ambil data point
+            # Cek apakah info kosong (Tanda diblokir atau ticker salah)
+            if not info or len(info) < 5:
+                errors.append(f"{ticker}: Data kosong/diblokir Yahoo.")
+                continue
+
+            # Ambil data point dengan aman
             data.append({
                 'Kode': ticker.replace('.JK', ''),
-                'Harga': info.get('currentPrice'),
+                'Harga': info.get('currentPrice') or info.get('regularMarketPreviousClose'),
                 'P/E Ratio (x)': info.get('trailingPE'),
                 'P/S Ratio (x)': info.get('priceToSalesTrailing12Months'),
                 'ROE (%)': info.get('returnOnEquity', 0) * 100 if info.get('returnOnEquity') else None,
                 'DER (%)': info.get('debtToEquity'),
                 'EPS (Rp)': info.get('trailingEps')
             })
-        except:
+            
+        except Exception as e:
+            # Catat errornya biar kita tau kenapa
+            errors.append(f"{ticker}: {str(e)}")
             continue
 
     progress_bar.empty()
+    
+    # Tampilkan Error di Layar jika ada (Supaya user tau)
+    if errors:
+        with st.expander("⚠️ Lihat Detail Error (Kenapa ada saham yang hilang?)"):
+            for err in errors:
+                st.write(err)
+                
     return pd.DataFrame(data)
 
 # --- BAGIAN 1: INPUT & SEARCH ---
