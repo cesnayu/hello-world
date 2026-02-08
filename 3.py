@@ -1,201 +1,267 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import requests
+import time
 
-# --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="Dynamic Stock Screener", layout="wide")
+# ==========================================
+# 1. KONFIGURASI HALAMAN
+# ==========================================
+st.set_page_config(page_title="Pro Stock Screener", layout="wide")
 
-st.title("🔍 Search First, Filter Later")
+st.title("🦅 Pro Stock Screener: Search First, Filter Later")
 st.markdown("""
-**Alur Kerja:**
-1. Masukkan list saham & Klik **"Ambil Data"**.
-2. Lihat range data (Min/Max) yang muncul.
-3. Atur filter di panel bawah untuk menandai mana yang **Lolos (Hijau)** dan **Gagal (Merah)**.
+**Cara Pakai:**
+1. Masukkan kode saham & Klik **"Ambil Data Mentah"**.
+2. Tunggu data muncul.
+3. Lihat **Range Data** (Min/Max) di panel statistik.
+4. Ketik angka filter kamu sendiri untuk melihat mana yang **Lolos (Hijau)**.
 """)
 
-# --- FUNGSI AMBIL DATA (YANG SUDAH DIPERBAIKI) ---
+# ==========================================
+# 2. FUNGSI AMBIL DATA (ROBUST & ANTI-BLOKIR)
+# ==========================================
+@st.cache_data(ttl=3600, show_spinner=False)
 def get_fundamental_data(tickers_raw):
-    # Bersihkan input
+    # Bersihkan input user
     tickers_list = [x.strip().upper() for x in tickers_raw.split(',')]
     tickers_fixed = []
     for t in tickers_list:
-        # Hapus spasi aneh dan pastikan format .JK
         clean_t = t.replace(' ', '')
+        # Tambah .JK jika belum ada
         if not clean_t.endswith(".JK"):
             tickers_fixed.append(f"{clean_t}.JK")
         else:
             tickers_fixed.append(clean_t)
     
     data = []
-    errors = [] # Untuk menampung pesan error
+    errors = []
     
-    progress_bar = st.progress(0, text="Mengambil data...")
+    # Progress Bar UI
+    progress_text = "Menghubungi Bursa..."
+    my_bar = st.progress(0, text=progress_text)
     
-    # Header palsu agar dikira browser manusia (Anti-Blokir Yahoo)
-    requests_headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
+    # SETUP SESSION AGAR DIKIRA BROWSER (ANTI-BLOKIR)
+    session = requests.Session()
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    })
 
     for i, ticker in enumerate(tickers_fixed):
         try:
-            progress_bar.progress(int((i / len(tickers_fixed)) * 100), text=f"Menganalisa {ticker}...")
+            # Update Progress
+            pct = int((i / len(tickers_fixed)) * 100)
+            my_bar.progress(pct, text=f"Menganalisa {ticker}...")
             
-            # Trik: Gunakan Session khusus biar lebih kebal blokir
-            stock = yf.Ticker(ticker, session=None) 
+            # PENTING: Jeda 0.5 detik per saham agar tidak dianggap SPAM oleh Yahoo
+            time.sleep(0.5)
             
-            # Coba ambil info
+            stock = yf.Ticker(ticker, session=session)
+            
+            # Coba ambil fast_info (lebih cepat & hemat kuota request) untuk harga
+            try:
+                price = stock.fast_info.last_price
+            except:
+                price = None
+
+            # Ambil Info Fundamental (Ini yang berat)
             info = stock.info
             
-            # Cek apakah info kosong (Tanda diblokir atau ticker salah)
             if not info or len(info) < 5:
-                errors.append(f"{ticker}: Data kosong/diblokir Yahoo.")
+                errors.append(f"{ticker}: Data Kosong/Gagal.")
                 continue
 
-            # Ambil data point dengan aman
+            # Ambil Data Point
+            # Gunakan .get() agar tidak error jika data spesifik hilang
+            pe = info.get('trailingPE')
+            ps = info.get('priceToSalesTrailing12Months')
+            roe = info.get('returnOnEquity')
+            der = info.get('debtToEquity')
+            eps = info.get('trailingEps')
+            
+            # Fallback harga jika fast_info gagal
+            if price is None:
+                price = info.get('currentPrice') or info.get('regularMarketPreviousClose')
+
+            # Konversi ROE desimal ke Persen (0.15 -> 15.0)
+            if roe is not None: roe = roe * 100
+
             data.append({
                 'Kode': ticker.replace('.JK', ''),
-                'Harga': info.get('currentPrice') or info.get('regularMarketPreviousClose'),
-                'P/E Ratio (x)': info.get('trailingPE'),
-                'P/S Ratio (x)': info.get('priceToSalesTrailing12Months'),
-                'ROE (%)': info.get('returnOnEquity', 0) * 100 if info.get('returnOnEquity') else None,
-                'DER (%)': info.get('debtToEquity'),
-                'EPS (Rp)': info.get('trailingEps')
+                'Harga': price,
+                'P/E Ratio (x)': pe,
+                'P/S Ratio (x)': ps,
+                'ROE (%)': roe,
+                'DER (%)': der,
+                'EPS (Rp)': eps
             })
             
         except Exception as e:
-            # Catat errornya biar kita tau kenapa
-            errors.append(f"{ticker}: {str(e)}")
+            errors.append(f"{ticker}: Error ({str(e)})")
             continue
 
-    progress_bar.empty()
+    my_bar.empty() # Hapus progress bar setelah selesai
     
-    # Tampilkan Error di Layar jika ada (Supaya user tau)
-    if errors:
-        with st.expander("⚠️ Lihat Detail Error (Kenapa ada saham yang hilang?)"):
-            for err in errors:
-                st.write(err)
-                
-    return pd.DataFrame(data)
+    return pd.DataFrame(data), errors
 
-# --- BAGIAN 1: INPUT & SEARCH ---
-default_tickers = "BBCA, BBRI, BMRI, BBNI, ASII, TLKM, UNVR, ICBP, ADRO, PTBA, GOTO, SIDO"
-input_saham = st.text_area("1️⃣ Masukkan Daftar Saham:", value=default_tickers)
+# ==========================================
+# 3. UI BAGIAN ATAS: INPUT & SEARCH
+# ==========================================
+default_tickers = "BBCA, BBRI, BMRI, BBNI, ASII, TLKM, UNVR, ICBP, ADRO, PTBA, ITMG, GOTO, ARTO, SIDO, KLBF, MAPI"
+input_saham = st.text_area("1️⃣ Masukkan Daftar Saham (Pisahkan koma):", value=default_tickers)
 
-# Tombol Search
 if st.button("🚀 Ambil Data Mentah"):
     if not input_saham:
         st.warning("Masukkan kode saham dulu.")
     else:
-        # Ambil data dan simpan ke Session State agar tidak hilang saat filter digeser
-        df_raw = get_fundamental_data(input_saham)
-        if not df_raw.empty:
-            st.session_state['data_saham'] = df_raw
-            st.success(f"Berhasil mengambil data {len(df_raw)} saham! Silakan atur filter di bawah.")
+        # Panggil fungsi
+        df_result, err_list = get_fundamental_data(input_saham)
+        
+        if not df_result.empty:
+            # SIMPAN KE SESSION STATE
+            # Agar saat kita ubah filter di bawah, data tidak hilang/download ulang
+            st.session_state['data_saham_final'] = df_result
+            st.session_state['error_log'] = err_list
+            st.success(f"Berhasil mengambil {len(df_result)} saham!")
         else:
-            st.error("Data tidak ditemukan.")
+            st.error("Gagal mengambil data. Cek koneksi atau kode saham.")
 
-# --- BAGIAN 2: TAMPILAN & FILTER (Hanya muncul jika data sudah ada) ---
-if 'data_saham' in st.session_state:
-    df = st.session_state['data_saham']
+# ==========================================
+# 4. UI BAGIAN BAWAH: FILTER & DISPLAY
+# ==========================================
+# Bagian ini hanya muncul jika data sudah ada di memory (Session State)
+if 'data_saham_final' in st.session_state:
+    df = st.session_state['data_saham_final']
+    errors = st.session_state['error_log']
     
     st.divider()
-    st.header("2️⃣ Atur Filter & Standar Kamu")
+    st.header("2️⃣ Analisa & Filter Nilai")
     
-    # Hitung Statistik Sederhana untuk Referensi User
-    # Agar user tau range datanya dari mana sampai mana
-    col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+    # --- A. TAMPILKAN STATISTIK RANGE DATA (Min/Max) ---
+    # Ini membantu user menentukan angka filter yang wajar
+    st.info("ℹ️ **Statistik Data Saat Ini (Referensi untuk Filter):**")
     
-    with col_stat1:
+    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+    
+    with col_s1:
         min_pe = df['P/E Ratio (x)'].min()
         max_pe = df['P/E Ratio (x)'].max()
-        st.info(f"**Range P/E Data Ini:**\n{min_pe:.2f}x s/d {max_pe:.2f}x")
-        
-        # Input Filter P/E
-        filter_pe = st.number_input("Max P/E yg diinginkan:", value=15.0, step=0.5)
+        st.write(f"**P/E Range:**\n{min_pe:.1f}x - {max_pe:.1f}x")
+        # Input Filter User
+        filter_pe = st.number_input("Max P/E Target:", value=15.0, step=0.5)
 
-    with col_stat2:
+    with col_s2:
         min_roe = df['ROE (%)'].min()
         max_roe = df['ROE (%)'].max()
-        st.info(f"**Range ROE Data Ini:**\n{min_roe:.2f}% s/d {max_roe:.2f}%")
-        
-        # Input Filter ROE
-        filter_roe = st.number_input("Min ROE yg diinginkan:", value=10.0, step=0.5)
+        st.write(f"**ROE Range:**\n{min_roe:.1f}% - {max_roe:.1f}%")
+        # Input Filter User
+        filter_roe = st.number_input("Min ROE Target:", value=10.0, step=1.0)
 
-    with col_stat3:
+    with col_s3:
         min_der = df['DER (%)'].min()
         max_der = df['DER (%)'].max()
-        st.info(f"**Range DER Data Ini:**\n{min_der:.2f}% s/d {max_der:.2f}%")
-        
-        # Input Filter DER
-        filter_der = st.number_input("Max DER yg diinginkan:", value=100.0, step=10.0)
+        st.write(f"**DER Range:**\n{min_der:.1f}% - {max_der:.1f}%")
+        # Input Filter User
+        filter_der = st.number_input("Max DER Target:", value=100.0, step=10.0)
 
-    with col_stat4:
+    with col_s4:
         min_ps = df['P/S Ratio (x)'].min()
         max_ps = df['P/S Ratio (x)'].max()
-        st.info(f"**Range P/S Data Ini:**\n{min_ps:.2f}x s/d {max_ps:.2f}x")
-        
-        # Input Filter P/S
-        filter_ps = st.number_input("Max P/S yg diinginkan:", value=2.0, step=0.1)
+        st.write(f"**P/S Range:**\n{min_ps:.1f}x - {max_ps:.1f}x")
+        # Input Filter User
+        filter_ps = st.number_input("Max P/S Target:", value=2.0, step=0.1)
 
-    # --- LOGIKA PEWARNAAN TABEL ---
-    # Fungsi ini akan berjalan ulang setiap kali kamu ubah angka di atas
-    def style_dataframe(row):
+    # --- B. HITUNG SKOR & SORTING ---
+    # Kita beri skor: Semakin banyak kriteria terpenuhi, semakin tinggi skornya
+    # Kriteria: PE <= Target, ROE >= Target, DER <= Target, PS <= Target
+    
+    # Copy dataframe biar aman
+    df_scored = df.copy()
+    
+    # Fungsi hitung skor per baris
+    def calculate_score(row):
+        score = 0
+        if pd.notna(row['P/E Ratio (x)']) and row['P/E Ratio (x)'] <= filter_pe: score += 1
+        if pd.notna(row['ROE (%)']) and row['ROE (%)'] >= filter_roe: score += 1
+        if pd.notna(row['DER (%)']) and row['DER (%)'] <= filter_der: score += 1
+        if pd.notna(row['P/S Ratio (x)']) and row['P/S Ratio (x)'] <= filter_ps: score += 1
+        return score
+
+    df_scored['Skor'] = df_scored.apply(calculate_score, axis=1)
+    
+    # Urutkan: Skor Tertinggi -> ROE Tertinggi
+    df_sorted = df_scored.sort_values(by=['Skor', 'ROE (%)'], ascending=[False, False])
+
+    # --- C. STYLING (WARNA-WARNI) ---
+    # Fungsi ini menentukan warna background sel
+    def style_table(row):
+        # Siapkan list warna default (putih/transparan) untuk setiap kolom
+        # Urutan Kolom: Kode, Harga, PE, PS, ROE, DER, EPS, Skor
         styles = [''] * len(row)
         
-        # Index Kolom (Sesuaikan jika urutan berubah)
-        # 0:Kode, 1:Harga, 2:PE, 3:PS, 4:ROE, 5:DER, 6:EPS
+        # Helper warna
+        green = 'background-color: #d4edda; color: black' # Hijau Muda
+        red   = 'background-color: #f8d7da; color: black' # Merah Muda
         
-        # Rule P/E (Kolom index 2) - Makin Rendah Bagus
+        # Logika Warna P/E (Kolom Index 2)
         pe_val = row['P/E Ratio (x)']
         if pd.notna(pe_val):
-            color = '#d4edda' if pe_val <= filter_pe else '#f8d7da' # Hijau jika <= Filter
-            styles[2] = f'background-color: {color}; color: black'
-
-        # Rule P/S (Kolom index 3) - Makin Rendah Bagus
+            styles[2] = green if pe_val <= filter_pe else red
+            
+        # Logika Warna P/S (Kolom Index 3)
         ps_val = row['P/S Ratio (x)']
         if pd.notna(ps_val):
-            color = '#d4edda' if ps_val <= filter_ps else '#f8d7da'
-            styles[3] = f'background-color: {color}; color: black'
-
-        # Rule ROE (Kolom index 4) - Makin TINGGI Bagus
+            styles[3] = green if ps_val <= filter_ps else red
+            
+        # Logika Warna ROE (Kolom Index 4) - Ingat ROE harus LEBIH BESAR
         roe_val = row['ROE (%)']
         if pd.notna(roe_val):
-            color = '#d4edda' if roe_val >= filter_roe else '#f8d7da' # Hijau jika >= Filter
-            styles[4] = f'background-color: {color}; color: black'
-
-        # Rule DER (Kolom index 5) - Makin Rendah Bagus
+            styles[4] = green if roe_val >= filter_roe else red
+            
+        # Logika Warna DER (Kolom Index 5)
         der_val = row['DER (%)']
         if pd.notna(der_val):
-            color = '#d4edda' if der_val <= filter_der else '#f8d7da'
-            styles[5] = f'background-color: {color}; color: black'
+            styles[5] = green if der_val <= filter_der else red
 
+        # Logika Warna Skor (Kolom Terakhir) - Hijau pekat jika 4/4
+        score_val = row['Skor']
+        if score_val == 4:
+            styles[-1] = 'background-color: #28a745; color: white; font-weight: bold' # Hijau Tua
+            
         return styles
 
-    # Tampilkan Tabel
+    # --- D. TAMPILKAN TABEL AKHIR ---
     st.subheader("📊 Hasil Screening")
     
-    # Hitung Skor Kelulusan (Opsional: buat sorting)
-    # Kita bikin kolom baru temporary untuk sorting, tapi gak ditampilkan
-    df_display = df.copy()
-    df_display['Score'] = (
-        (df['P/E Ratio (x)'] <= filter_pe).astype(int) + 
-        (df['ROE (%)'] >= filter_roe).astype(int) + 
-        (df['DER (%)'] <= filter_der).astype(int) +
-        (df['P/S Ratio (x)'] <= filter_ps).astype(int)
-    )
-    
-    # Sort biar yang paling hijau ada di atas
-    df_display = df_display.sort_values(by=['Score', 'ROE (%)'], ascending=[False, False])
-    
-    # Hapus kolom score biar tabel bersih (atau tampilkan kalau mau)
-    df_final = df_display.drop(columns=['Score'])
+    # Konfigurasi Tampilan Angka (Supaya ada Rp, %, x)
+    col_config = {
+        "Kode": st.column_config.TextColumn("Ticker", width="small"),
+        "Harga": st.column_config.NumberColumn("Harga", format="Rp %d"),
+        "P/E Ratio (x)": st.column_config.NumberColumn("P/E Ratio", format="%.2fx"),
+        "P/S Ratio (x)": st.column_config.NumberColumn("P/S Ratio", format="%.2fx"),
+        "ROE (%)": st.column_config.NumberColumn("ROE", format="%.2f%%"),
+        "DER (%)": st.column_config.NumberColumn("DER", format="%.2f%%"),
+        "EPS (Rp)": st.column_config.NumberColumn("EPS", format="Rp %.2f"),
+        "Skor": st.column_config.ProgressColumn(
+            "Match Score", 
+            min_value=0, 
+            max_value=4, 
+            format="%d/4",
+            help="Berapa banyak kriteria yang lolos?"
+        )
+    }
 
+    # Apply Style & Tampilkan
     st.dataframe(
-        df_final.style.apply(style_dataframe, axis=1)
-                  .format("{:.2f}", subset=['P/E Ratio (x)', 'P/S Ratio (x)', 'ROE (%)', 'DER (%)', 'EPS (Rp)']),
+        df_sorted.style.apply(style_table, axis=1),
+        column_config=col_config,
         use_container_width=True,
         height=600,
         hide_index=True
     )
     
-    st.caption("Baris paling atas adalah yang paling banyak memenuhi kriteria kamu.")
+    # Tampilkan Error Log di bawah jika ada
+    if errors:
+        with st.expander(f"⚠️ Ada {len(errors)} Saham Gagal Diambil"):
+            st.write(errors)
+            st.caption("Tips: Jika error 'Too Many Requests', coba kurangi jumlah saham.")
