@@ -1,115 +1,146 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import numpy as np
 
 # --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="Stock Comparison Dashboard", layout="wide")
+st.set_page_config(page_title="Valuasi Saham (Input Manual)", layout="wide")
 
-st.title("⚖️ Stock Perbandingan Fundamental")
-st.markdown("Bandingkan **P/E, P/S, ROE, DER, dan EPS** dari banyak saham sekaligus.")
+st.title("🧮 Smart Valuation Dashboard (Input Presisi)")
+st.markdown("""
+Masukkan asumsi valuasi dengan mengetik angka secara manual (bukan digeser).
+* **Bank:** Menggunakan DDM.
+* **Non-Bank:** Menggunakan DCF.
+""")
 
-# --- INPUT SAHAM ---
-default_tickers = "BBCA, BBRI, BMRI, BBNI, ASII, TLKM, UNVR, ICBP, ADRO, PTBA, GOTO"
-input_saham = st.text_area("Masukkan Kode Saham (pisahkan dengan koma):", value=default_tickers)
+# --- SIDEBAR: ASUMSI (INPUT ANGKA MANUAL) ---
+st.sidebar.header("⚙️ Input Asumsi (%)")
+st.sidebar.info("Ketik angka persentase di bawah ini.")
 
-# --- FUNGSI AMBIL DATA ---
-def get_fundamental_data(tickers_raw):
-    tickers_list = [x.strip().upper() for x in tickers_raw.split(',')]
-    tickers_fixed = [f"{t}.JK" if not t.endswith(".JK") else t for t in tickers_list]
+# Menggunakan number_input pengganti slider
+# step=0.1 artinya setiap klik panah naik/turun 0.1
+# format="%.2f" artinya menampilkan 2 angka belakang koma
+
+discount_rate_pct = st.sidebar.number_input(
+    "Discount Rate / Cost of Equity (%)", 
+    min_value=1.0, 
+    max_value=50.0, 
+    value=12.0, 
+    step=0.1,
+    format="%.2f",
+    help="Return minimal yang diharapkan investor."
+)
+
+growth_rate_pct = st.sidebar.number_input(
+    "Growth Rate Tahunan (%)", 
+    min_value=-10.0, 
+    max_value=50.0, 
+    value=5.0, 
+    step=0.1,
+    format="%.2f",
+    help="Estimasi pertumbuhan laba/cashflow per tahun."
+)
+
+terminal_growth_pct = st.sidebar.number_input(
+    "Terminal Growth (Khusus DCF) (%)", 
+    min_value=0.0, 
+    max_value=10.0, 
+    value=2.5, 
+    step=0.1,
+    format="%.2f",
+    help="Pertumbuhan jangka panjang selamanya (biasanya ikut inflasi 2-3%)."
+)
+
+# Konversi ke desimal untuk rumus matematika
+disc_rate = discount_rate_pct / 100
+growth_r = growth_rate_pct / 100
+term_growth = terminal_growth_pct / 100
+
+# --- LIST BANK ---
+LIST_BANK = ['BBCA', 'BBRI', 'BMRI', 'BBNI', 'BRIS', 'BBTN', 'ARTO', 'BDMN', 'BNGA', 'PNBN']
+
+# --- FUNGSI HITUNG ---
+def calculate_smart_valuation(ticker_raw, disc, grow, term):
+    ticker_clean = ticker_raw.upper().replace('.JK', '').strip()
+    ticker_yf = f"{ticker_clean}.JK"
     
-    data = []
-    progress_bar = st.progress(0, text="Mengambil data fundamental...")
-    
-    for i, ticker in enumerate(tickers_fixed):
-        try:
-            progress_bar.progress(int((i / len(tickers_fixed)) * 100), text=f"Menganalisa {ticker}...")
-            
-            stock = yf.Ticker(ticker)
-            info = stock.info
-            
-            name = info.get('shortName', ticker)
-            price = info.get('currentPrice', 0)
-            
-            # Ambil data (Default None jika gagal)
-            pe = info.get('trailingPE')
-            ps = info.get('priceToSalesTrailing12Months')
-            roe = info.get('returnOnEquity')
-            der = info.get('debtToEquity')
-            eps = info.get('trailingEps')
-            
-            # Konversi ROE ke Persen jika ada
-            if roe is not None: roe = roe * 100
-
-            data.append({
-                'Kode': ticker.replace('.JK', ''),
-                'Harga': price,
-                'P/E Ratio (x)': pe,
-                'P/S Ratio (x)': ps,
-                'ROE (%)': roe,
-                'DER (%)': der,
-                'EPS (Rp)': eps
-            })
-            
-        except Exception:
-            continue
-
-    progress_bar.empty()
-    return pd.DataFrame(data)
-
-# --- TOMBOL PROSES ---
-if st.button("🚀 Bandingkan Sekarang"):
-    if not input_saham:
-        st.warning("Masukkan kode saham dulu.")
-    else:
-        df = get_fundamental_data(input_saham)
+    try:
+        stock = yf.Ticker(ticker_yf)
+        info = stock.info
         
-        if not df.empty:
-            st.success(f"Berhasil membandingkan {len(df)} saham.")
+        if not info: return None, "Data Tidak Ditemukan"
             
-            # --- PENTING: BERSIHKAN DATA SEBELUM DITAMPILKAN ---
-            # 1. Pastikan semua kolom angka terbaca sebagai float (bukan object/string)
-            cols_to_numeric = ['P/E Ratio (x)', 'P/S Ratio (x)', 'ROE (%)', 'DER (%)', 'EPS (Rp)']
-            for col in cols_to_numeric:
-                df[col] = pd.to_numeric(df[col], errors='coerce') # Ubah error jadi NaN (Not a Number)
+        curr_price = info.get('currentPrice') or info.get('regularMarketPreviousClose')
+        if not curr_price: return None, "Harga saham kosong"
 
-            # --- TAMPILAN TABEL ---
-            st.subheader("📋 Tabel Perbandingan (Heatmap)")
+        # --- LOGIKA PEMILIHAN METODE ---
+        is_bank = ticker_clean in LIST_BANK
+        method = "DDM (Dividen)" if is_bank else "DCF (Cashflow)"
+        
+        fair_value = 0
+        metric_used = 0 
+        
+        # 1. METODE DDM (BANK)
+        if is_bank:
+            if disc <= grow:
+                return None, "Error: Discount Rate harus > Growth Rate"
 
-            # Konfigurasi Tampilan (Streamlit yang menangani format angka)
-            column_config = {
-                "Kode": st.column_config.TextColumn("Ticker", width="small"),
-                "Harga": st.column_config.NumberColumn("Harga", format="Rp %d"),
-                "P/E Ratio (x)": st.column_config.NumberColumn("P/E Ratio", format="%.2fx"),
-                "P/S Ratio (x)": st.column_config.NumberColumn("P/S Ratio", format="%.2fx"),
-                "ROE (%)": st.column_config.NumberColumn("ROE", format="%.2f%%"),
-                "DER (%)": st.column_config.NumberColumn("Debt/Eq", format="%.2f%%"),
-                "EPS (Rp)": st.column_config.NumberColumn("EPS", format="Rp %.2f"),
-            }
-
-            # --- STYLING (Hanya Warna, Tanpa Format Angka) ---
-            # Kita hapus .format() dari sini agar tidak bentrok dengan NoneType
-            # background_gradient akan otomatis mengabaikan NaN (tetap putih)
-            styled_df = df.style\
-                .background_gradient(subset=['ROE (%)', 'EPS (Rp)'], cmap='RdYlGn')\
-                .background_gradient(subset=['P/E Ratio (x)', 'P/S Ratio (x)', 'DER (%)'], cmap='RdYlGn_r')
-
-            st.dataframe(
-                styled_df,
-                column_config=column_config,
-                use_container_width=True,
-                height=500,
-                hide_index=True
-            )
+            last_dividend = info.get('dividendRate')
+            if not last_dividend: return None, "Tidak ada Dividen (DDM Gagal)"
             
-            # --- GRAFIK ---
-            st.divider()
-            st.subheader("📊 Visualisasi Grafik")
-            metric_choice = st.selectbox("Pilih Metrik:", ['P/E Ratio (x)', 'ROE (%)', 'DER (%)', 'P/S Ratio (x)'])
-            
-            # Drop NaN sebelum plot grafik agar bar chart tidak error
-            chart_df = df[['Kode', metric_choice]].dropna().set_index('Kode')
-            st.bar_chart(chart_df)
-                
+            metric_used = last_dividend
+            next_dividend = last_dividend * (1 + grow)
+            fair_value = next_dividend / (disc - grow)
+
+        # 2. METODE DCF (NON-BANK)
         else:
-            st.error("Data tidak ditemukan atau koneksi bermasalah.")
+            shares = info.get('sharesOutstanding')
+            fcf = info.get('freeCashflow')
+            
+            # Fallback jika FCF kosong
+            if fcf is None:
+                ocf = info.get('operatingCashflow')
+                if ocf: fcf = ocf * 0.7 
+            
+            if not fcf or not shares: return None, "Data Cashflow/Shares Kosong"
+            
+            metric_used = fcf / 1_000_000_000 # Miliar
+            
+            # Proyeksi
+            future_fcfs = [fcf * ((1 + grow) ** i) for i in range(1, 6)]
+            term_val = (future_fcfs[-1] * (1 + term)) / (disc - term)
+            
+            pv_total = sum([val / ((1 + disc) ** (i + 1)) for i, val in enumerate(future_fcfs)])
+            pv_total += term_val / ((1 + disc) ** 5)
+            
+            cash = info.get('totalCash', 0) or 0
+            debt = info.get('totalDebt', 0) or 0
+            
+            equity_val = pv_total + cash - debt
+            fair_value = equity_val / shares
+
+        # Hitung Potensi
+        upside = ((fair_value - curr_price) / curr_price) * 100
+        
+        return {
+            'Ticker': ticker_clean,
+            'Metode': method,
+            'Harga Pasar': curr_price,
+            'Nilai Wajar': fair_value,
+            'Potensi (%)': upside,
+            'Basis Data': metric_used
+        }, None
+
+    except Exception as e:
+        return None, str(e)
+
+# --- UI UTAMA ---
+default_list = "BMRI, BBRI, BBCA, TLKM, ASII, UNVR, ADRO"
+input_user = st.text_area("Masukkan Saham:", value=default_list)
+
+if st.button("🚀 Hitung Valuasi"):
+    tickers = [x.strip() for x in input_user.split(',')]
+    
+    results = []
+    errors = []
+    
+    bar = st.progress(0, "Menganalisa...")
