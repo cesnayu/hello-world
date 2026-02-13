@@ -71,9 +71,9 @@ def get_stock_data(tickers):
 
         row = {
             "Ticker": ticker,
-            "Price": round(current_price, 2),
-            "Today (%)": round(today_return, 2),
-            "Volume": f"{today_volume:,.0f}" # Format angka dengan ribuan
+            "Price": current_price,  # Simpan sebagai float, formatting di display
+            "Today (%)": today_return,  # Simpan sebagai float, formatting di display
+            "Volume": today_volume  # Simpan sebagai int, formatting di display
         }
 
         weekly_returns = []
@@ -86,13 +86,14 @@ def get_stock_data(tickers):
 
             if not day_data.empty:
                 daily_return = day_data["Return"].iloc[0]
-                row[f"{day_name} (%)"] = round(daily_return, 2)
-                if daily_return > 0: gain_count += 1
+                row[f"{day_name} (%)"] = daily_return  # Simpan sebagai float
+                if daily_return > 0: 
+                    gain_count += 1
                 weekly_returns.append(daily_return)
             else:
-                row[f"{day_name} (%)"] = "-"
+                row[f"{day_name} (%)"] = None  # None untuk data yang tidak ada
 
-        row["Weekly Acc (%)"] = round(sum(weekly_returns), 2) if weekly_returns else 0
+        row["Weekly Acc (%)"] = sum(weekly_returns) if weekly_returns else 0
         row["Win Rate"] = f"{gain_count}/5"
         all_data.append(row)
 
@@ -108,18 +109,43 @@ def get_stock_data(tickers):
 with st.spinner("Fetching market data..."):
     final_df = get_stock_data(LIST_SAHAM)
 
-# Top 3 Gainers
-st.subheader("🔥 Top Gainer Today")
-st.table(final_df.head(3))
-
-# Main Table
+# Main Table - Formatting dengan 4 desimal
 st.subheader("📊 Weekly Overview")
+
+# Buat copy untuk styling
+display_df = final_df.copy()
+
+# Format angka dengan 4 desimal untuk display
+format_dict = {
+    'Price': '{:.4f}',
+    'Today (%)': '{:.4f}',
+    'Volume': '{:,.0f}',
+    'Weekly Acc (%)': '{:.4f}'
+}
+
+# Tambahkan format untuk kolom hari
+for day in days_names:
+    col_name = f"{day} (%)"
+    if col_name in display_df.columns:
+        format_dict[col_name] = '{:.4f}'
+
+# Styling dengan warna untuk kolom persentase
+def color_negative_red(val):
+    if pd.isna(val) or val == "-":
+        return ''
+    if isinstance(val, (int, float)):
+        if val > 0:
+            return 'color: #00ff00'
+        elif val < 0:
+            return 'color: #ff4b4b'
+    return ''
+
+# Apply styling
+styled_df = display_df.style.format(format_dict, na_rep='-')
+styled_df = styled_df.map(color_negative_red, subset=[c for c in display_df.columns if "%" in c])
+
 st.dataframe(
-    final_df.style.map(
-        lambda x: 'color: #00ff00' if isinstance(x, (int, float)) and x > 0
-        else ('color: #ff4b4b' if isinstance(x, (int, float)) and x < 0 else ''),
-        subset=[c for c in final_df.columns if "%" in c]
-    ),
+    styled_df,
     use_container_width=True,
     hide_index=True
 )
