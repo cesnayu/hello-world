@@ -17,6 +17,9 @@ today = datetime.now()
 start_of_week = today - timedelta(days=today.weekday())
 days_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
+# Define end_date di level global untuk digunakan di Chart Explorer
+end_date_global = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+
 # ==============================
 # 2. CACHING - FIXED
 # ==============================
@@ -44,7 +47,8 @@ def download_data(_tickers_tuple, start_date, end_date):
 def get_stock_data(tickers):
     # Ambil data sedikit lebih lama untuk perhitungan return
     start_date = (start_of_week - timedelta(days=7)).strftime("%Y-%m-%d")
-    end_date = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+    # Gunakan end_date_global yang sudah didefinisikan di atas
+    end_date = end_date_global
 
     # Convert list ke tuple untuk caching
     data = download_data(tuple(tickers), start_date, end_date)
@@ -168,8 +172,8 @@ if selected_stocks:
     # Ambil data historis 1 bulan terakhir untuk grafik
     chart_start = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
     
-    # Download data khusus untuk yang di-select
-    chart_data = yf.download(selected_stocks, start=chart_start, end=end_date, progress=False, threads=False)
+    # Download data khusus untuk yang di-select - Gunakan end_date_global
+    chart_data = yf.download(selected_stocks, start=chart_start, end=end_date_global, progress=False, threads=False)
     
     if len(selected_stocks) == 1:
         # Jika cuma satu saham, yfinance formatnya beda
