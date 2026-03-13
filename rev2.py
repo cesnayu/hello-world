@@ -173,7 +173,7 @@ with tabs[4]:
 with tabs[6]:
     st.header("📅 Weekly Performance")
     with st.spinner("Calculating weekly returns..."):
-        df_weekly = get_weekly_recap_data(LIST_SAHAM_IHSG[:20]) # Ambil 20 besar
+        df_weekly = get_weekly_recap_data(LIST_SAHAM_IHSG[:500]) # Ambil 20 besar
         if not df_weekly.empty:
             def style_returns(val):
                 if isinstance(val, (int, float)):
