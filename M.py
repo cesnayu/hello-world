@@ -4,11 +4,11 @@ import pandas as pd
 import time
 
 # Mengatur judul halaman web Streamlit
-st.set_page_config(page_title="IHSG Top 100 Financials", layout="wide")
-st.title("📊 IHSG Top 100 - Jarak 52-Week High & Pertumbuhan Net Profit")
-st.write("Aplikasi ini melacak harga terkini sekaligus mendeteksi **transparansi periode laporan keuangan** yang digunakan.")
+st.set_page_config(page_title="IHSG Top 100 Dashboard", layout="wide")
+st.title("📊 IHSG Top 100 - Harga, Finansial & Dividend Yield")
+st.write("Aplikasi melacak Harga terkini, 52-Week High, Pertumbuhan Laba, dan Persentase Dividen.")
 
-# Daftar 100 Ticker Saham Berkapitalisasi Besar
+# Daftar 100 Ticker Saham
 tickers = [
     "BBCA.JK", "BREN.JK", "BBRI.JK", "BMRI.JK", "BYAN.JK", "TLKM.JK", "AMMN.JK", "ASII.JK", "TPIA.JK", "BBNI.JK",
     "PANI.JK", "UNVR.JK", "ICBP.JK", "HMSP.JK", "GOTO.JK", "AMRT.JK", "UNTR.JK", "ADRO.JK", "KLBF.JK", "CPIN.JK",
@@ -22,27 +22,23 @@ tickers = [
     "MTDL.JK", "BNLI.JK", "MPRO.JK", "DNET.JK", "SRAJ.JK", "MORA.JK", "DSSA.JK", "DCII.JK", "MASA.JK", "BBHI.JK"
 ]
 
-# Fungsi pembantu untuk mengubah tanggal mentah menjadi label Kuartal (misal: Q1 2026)
 def konversi_ke_kuartal(timestamp_mentah):
     if not timestamp_mentah:
         return "N/A"
     try:
-        # Jika formatnya Unix Epoch (angka), konversi ke datetime
         if isinstance(timestamp_mentah, (int, float)):
-            if timestamp_mentah > 1e11: # Jika dalam milidetik
+            if timestamp_mentah > 1e11:
                 timestamp_mentah = timestamp_mentah / 1000
             dt = pd.to_datetime(timestamp_mentah, unit='s')
         else:
             dt = pd.to_datetime(timestamp_mentah)
-        
-        # Tentukan kuartal berdasarkan bulan
         kuartal = (dt.month - 1) // 3 + 1
         return f"Q{kuartal} {dt.year}"
     except:
-        return "Data Lama / N/A"
+        return "N/A"
 
 @st.cache_data(ttl=3600)
-def ambil_data_saham_lengkap():
+def ambil_data_saham_super_lengkap():
     saham_data = []
     
     progress_bar = st.progress(0)
@@ -50,7 +46,7 @@ def ambil_data_saham_lengkap():
     
     for idx, ticker in enumerate(tickers):
         try:
-            status_text.text(f"Mengunduh finansial: {ticker} ({idx+1}/{len(tickers)})")
+            status_text.text(f"Mengambil data: {ticker} ({idx+1}/{len(tickers)})")
             stock = yf.Ticker(ticker)
             info = stock.info
             
@@ -59,15 +55,23 @@ def ambil_data_saham_lengkap():
             high_52week = info.get('fiftyTwoWeekHigh', 0)
             nama_perusahaan = info.get('longName', ticker)
             
-            # 1. Ambil data Net Profit Growth YoY (dikali 100 karena bentuk aslinya desimal)
+            # 1. Net Profit Growth YoY
             net_profit_yoy = info.get('earningsQuarterlyGrowth')
             if net_profit_yoy is not None:
                 net_profit_yoy = round(net_profit_yoy * 100, 2)
             
-            # 2. Ambil data kapan laporan kuartal terakhir rilis
+            # 2. Periode Laporan Keuangan
             periode_raw = info.get('mostRecentQuarter')
             periode_laporan = konversi_ke_kuartal(periode_raw)
             
+            # 3. Dividend Yield (Dikali 100 karena data mentah berupa desimal, contoh 0.05 -> 5%)
+            div_yield = info.get('dividendYield')
+            if div_yield is not None:
+                div_yield = round(div_yield * 100, 2)
+            else:
+                div_yield = 0.0  # Jika tidak ada riwayat dividen terbaru
+            
+            # Hitung Jarak/Selisih ke 52-Week High
             if current_price and high_52week:
                 selisih_harga = high_52week - current_price
                 selisih_persen = (selisih_harga / high_52week) * 100
@@ -84,6 +88,7 @@ def ambil_data_saham_lengkap():
                 "Selisih (IDR)": selisih_harga,
                 "Diskon dr High (%)": round(selisih_persen, 2),
                 "Net Profit Growth YoY (%)": net_profit_yoy,
+                "Dividend Yield (%)": div_yield,
                 "Periode Laporan": periode_laporan
             })
             
@@ -101,15 +106,15 @@ def ambil_data_saham_lengkap():
         df = df.sort_values(by="Market Cap (IDR)", ascending=False).reset_index(drop=True)
     return df
 
-if st.button("🔄 Refresh Data Finansial"):
+if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
 
-df_saham = ambil_data_saham_lengkap()
+df_saham = ambil_data_saham_super_lengkap()
 
 if not df_saham.empty:
-    st.success("Berhasil memuat data finansial terkini!")
+    st.success("Data berhasil diperbarui!")
     
-    # Tampilkan tabel interaktif
+    # Menampilkan tabel interaktif dengan format yang rapi
     st.dataframe(
         df_saham.style.format({
             "Market Cap (IDR)": "{:,.0f}",
@@ -117,13 +122,14 @@ if not df_saham.empty:
             "52-Week High": "{:,.0f}",
             "Selisih (IDR)": "{:,.0f}",
             "Diskon dr High (%)": "{:.2f}%",
-            "Net Profit Growth YoY (%)": lambda x: f"{x:+.2f}%" if pd.notnull(x) else "N/A"
+            "Net Profit Growth YoY (%)": lambda x: f"{x:+.2f}%" if pd.notnull(x) else "N/A",
+            "Dividend Yield (%)": "{:.2f}%"
         }),
         use_container_width=True
     )
     
-    # Unduh CSV
+    # Tombol Download data
     csv = df_saham.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Download Laporan Lengkap (CSV)", data=csv, file_name="ihsg_top100_growth_laporan.csv", mime="text/csv")
+    st.download_button("📥 Download Laporan Lengkap (CSV)", data=csv, file_name="ihsg_top100_lengkap.csv", mime="text/csv")
 else:
-    st.warning("Gagal mengambil data. Silakan coba klik tombol refresh.")
+    st.warning("Gagal mengambil data. Coba klik tombol Refresh.")
