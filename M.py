@@ -4,11 +4,11 @@ import pandas as pd
 import time
 
 # Mengatur judul halaman web Streamlit
-st.set_page_config(page_title="IHSG Top 100 Market Cap", layout="wide")
-st.title("📊 Data Saham IHSG Top 100 by Market Cap")
-st.write("Mengambil data harga terkini, 52-Week High, dan selisihnya secara langsung.")
+st.set_page_config(page_title="IHSG Top 100 Financials", layout="wide")
+st.title("📊 IHSG Top 100 - Jarak 52-Week High & Pertumbuhan Net Profit")
+st.write("Aplikasi ini melacak harga terkini sekaligus mendeteksi **transparansi periode laporan keuangan** yang digunakan.")
 
-# Daftar 100 Ticker Saham
+# Daftar 100 Ticker Saham Berkapitalisasi Besar
 tickers = [
     "BBCA.JK", "BREN.JK", "BBRI.JK", "BMRI.JK", "BYAN.JK", "TLKM.JK", "AMMN.JK", "ASII.JK", "TPIA.JK", "BBNI.JK",
     "PANI.JK", "UNVR.JK", "ICBP.JK", "HMSP.JK", "GOTO.JK", "AMRT.JK", "UNTR.JK", "ADRO.JK", "KLBF.JK", "CPIN.JK",
@@ -22,18 +22,35 @@ tickers = [
     "MTDL.JK", "BNLI.JK", "MPRO.JK", "DNET.JK", "SRAJ.JK", "MORA.JK", "DSSA.JK", "DCII.JK", "MASA.JK", "BBHI.JK"
 ]
 
-# Menggunakan cache Streamlit agar data tidak ditarik ulang dari internet setiap kali web diklik
-@st.cache_data(ttl=3600)  # Data disimpan di cache selama 1 jam (3600 detik)
-def ambil_data_saham():
+# Fungsi pembantu untuk mengubah tanggal mentah menjadi label Kuartal (misal: Q1 2026)
+def konversi_ke_kuartal(timestamp_mentah):
+    if not timestamp_mentah:
+        return "N/A"
+    try:
+        # Jika formatnya Unix Epoch (angka), konversi ke datetime
+        if isinstance(timestamp_mentah, (int, float)):
+            if timestamp_mentah > 1e11: # Jika dalam milidetik
+                timestamp_mentah = timestamp_mentah / 1000
+            dt = pd.to_datetime(timestamp_mentah, unit='s')
+        else:
+            dt = pd.to_datetime(timestamp_mentah)
+        
+        # Tentukan kuartal berdasarkan bulan
+        kuartal = (dt.month - 1) // 3 + 1
+        return f"Q{kuartal} {dt.year}"
+    except:
+        return "Data Lama / N/A"
+
+@st.cache_data(ttl=3600)
+def ambil_data_saham_lengkap():
     saham_data = []
     
-    # Progress bar di Streamlit
     progress_bar = st.progress(0)
     status_text = st.empty()
     
     for idx, ticker in enumerate(tickers):
         try:
-            status_text.text(f"Mengambil data: {ticker} ({idx+1}/{len(tickers)})")
+            status_text.text(f"Mengunduh finansial: {ticker} ({idx+1}/{len(tickers)})")
             stock = yf.Ticker(ticker)
             info = stock.info
             
@@ -41,6 +58,15 @@ def ambil_data_saham():
             current_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose', 0)
             high_52week = info.get('fiftyTwoWeekHigh', 0)
             nama_perusahaan = info.get('longName', ticker)
+            
+            # 1. Ambil data Net Profit Growth YoY (dikali 100 karena bentuk aslinya desimal)
+            net_profit_yoy = info.get('earningsQuarterlyGrowth')
+            if net_profit_yoy is not None:
+                net_profit_yoy = round(net_profit_yoy * 100, 2)
+            
+            # 2. Ambil data kapan laporan kuartal terakhir rilis
+            periode_raw = info.get('mostRecentQuarter')
+            periode_laporan = konversi_ke_kuartal(periode_raw)
             
             if current_price and high_52week:
                 selisih_harga = high_52week - current_price
@@ -56,10 +82,11 @@ def ambil_data_saham():
                 "Harga Terkini": current_price,
                 "52-Week High": high_52week,
                 "Selisih (IDR)": selisih_harga,
-                "Selisih (%)": round(selisih_persen, 2)
+                "Diskon dr High (%)": round(selisih_persen, 2),
+                "Net Profit Growth YoY (%)": net_profit_yoy,
+                "Periode Laporan": periode_laporan
             })
             
-            # Update progress bar
             progress_bar.progress((idx + 1) / len(tickers))
             time.sleep(0.05)
             
@@ -74,29 +101,32 @@ def ambil_data_saham():
         df = df.sort_values(by="Market Cap (IDR)", ascending=False).reset_index(drop=True)
     return df
 
-# Tombol untuk memicu penarikan data
-if st.button("🔄 Ambil / Refresh Data Saham"):
-    st.cache_data.clear()  # Hapus cache lama jika tombol ditekan
+if st.button("🔄 Refresh Data Finansial"):
+    st.cache_data.clear()
 
-df_saham = ambil_data_saham()
+df_saham = ambil_data_saham_lengkap()
 
 if not df_saham.empty:
-    # Menampilkan data dalam bentuk tabel interaktif di Streamlit
-    st.success("Data berhasil dimuat!")
+    st.success("Berhasil memuat data finansial terkini!")
     
-    # Format tampilan kolom agar lebih rapi membaca angka besar
+    # Tampilkan tabel interaktif
     st.dataframe(
         df_saham.style.format({
             "Market Cap (IDR)": "{:,.0f}",
             "Harga Terkini": "{:,.0f}",
             "52-Week High": "{:,.0f}",
             "Selisih (IDR)": "{:,.0f}",
-            "Selisih (%)": "{:.2f}%"
+            "Diskon dr High (%)": "{:.2f}%",
+            "Net Profit Growth YoY (%)": lambda x: f"{x:+.2f}%" if pd.notnull(x) else "N/A"
         }),
         use_container_width=True
     )
     
-    # Fitur download data ke CSV langsung dari web
+    # Unduh CSV
+    csv = df_saham.to_csv(index=False).encode('utf-8')
+    st.download_button("📥 Download Laporan Lengkap (CSV)", data=csv, file_name="ihsg_top100_growth_laporan.csv", mime="text/csv")
+else:
+    st.warning("Gagal mengambil data. Silakan coba klik tombol refresh.")
     csv = df_saham.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Download Data ke CSV/Excel",
