@@ -127,12 +127,3 @@ if not df_saham.empty:
     st.download_button("📥 Download Laporan Lengkap (CSV)", data=csv, file_name="ihsg_top100_growth_laporan.csv", mime="text/csv")
 else:
     st.warning("Gagal mengambil data. Silakan coba klik tombol refresh.")
-    csv = df_saham.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Data ke CSV/Excel",
-        data=csv,
-        file_name="top_100_saham_ihsg.csv",
-        mime="text/csv"
-    )
-else:
-    st.warning("Gagal mengambil data atau data kosong. Coba klik tombol Refresh di atas.")
