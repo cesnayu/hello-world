@@ -1,3 +1,6 @@
+# Install:
+# pip install yfinance pandas openpyxl
+
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
@@ -13,10 +16,8 @@ tickers = [
 # =========================
 # SETTING
 # =========================
-bulan = 8              # Agustus
-tanggal_awal = 1       # 1 Agustus
-tanggal_akhir = 30     # 30 Agustus
-jumlah_periode = 5     # 5 tahun terakhir
+jumlah_periode = 5
+bulan = 8
 
 tahun_sekarang = datetime.now().year
 tahun_mulai = tahun_sekarang - jumlah_periode
@@ -25,59 +26,87 @@ hasil = []
 
 for ticker in tickers:
 
+    print(f"\nMengambil data: {ticker}")
+
     try:
-        # Ambil data cukup panjang
+
+        # Ambil data lebih luas supaya tanggal trading tersedia
         data = yf.download(
             ticker,
-            start=f"{tahun_mulai}-08-01",
-            end=f"{tahun_sekarang + 1}-09-01",
+            start=f"{tahun_mulai}-07-25",
+            end=f"{tahun_sekarang + 1}-09-05",
+            interval="1d",
             auto_adjust=False,
             progress=False
         )
 
         if data.empty:
-            print(f"Tidak ada data untuk {ticker}")
+            print(f"Data kosong: {ticker}")
             continue
 
-        # Jika yfinance menghasilkan MultiIndex
+        # Ambil kolom Close
         if isinstance(data.columns, pd.MultiIndex):
-            close = data["Close"].squeeze()
+            close = data["Close"].iloc[:, 0]
         else:
             close = data["Close"]
 
         close = close.dropna()
 
+        # Pastikan index tanggal
+        close.index = pd.to_datetime(close.index)
+
         for tahun in range(tahun_mulai, tahun_sekarang + 1):
 
-            # Data harga untuk tahun tertentu
-            data_tahun = close[
+            # Data bulan Agustus untuk tahun tersebut
+            data_agustus = close[
                 (close.index.year == tahun) &
                 (close.index.month == bulan)
             ]
 
-            if data_tahun.empty:
+            if data_agustus.empty:
+                print(f"Tidak ada data Agustus {tahun} untuk {ticker}")
                 continue
 
-            # Ambil tanggal trading terdekat dengan 1 Agustus
-            harga_1_agustus = data_tahun.iloc[
-                (data_tahun.index.day - tanggal_awal).abs().argmin()
-            ]
+            # =========================
+            # TANGGAL AWAL
+            # =========================
+            tanggal_target_awal = pd.Timestamp(
+                year=tahun,
+                month=8,
+                day=1
+            )
 
-            tanggal_1 = data_tahun.index[
-                (data_tahun.index.day - tanggal_awal).abs().argmin()
-            ]
+            tanggal_1_agustus = min(
+                data_agustus.index,
+                key=lambda x: abs(x - tanggal_target_awal)
+            )
 
-            # Ambil tanggal trading terdekat dengan 30 Agustus
-            harga_30_agustus = data_tahun.iloc[
-                (data_tahun.index.day - tanggal_akhir).abs().argmin()
-            ]
+            harga_1_agustus = float(
+                data_agustus.loc[tanggal_1_agustus]
+            )
 
-            tanggal_30 = data_tahun.index[
-                (data_tahun.index.day - tanggal_akhir).abs().argmin()
-            ]
+            # =========================
+            # TANGGAL AKHIR
+            # =========================
+            tanggal_target_akhir = pd.Timestamp(
+                year=tahun,
+                month=8,
+                day=30
+            )
 
-            # Rumus return
-            persen_perubahan = (
+            tanggal_30_agustus = min(
+                data_agustus.index,
+                key=lambda x: abs(x - tanggal_target_akhir)
+            )
+
+            harga_30_agustus = float(
+                data_agustus.loc[tanggal_30_agustus]
+            )
+
+            # =========================
+            # RUMUS PERSENTASE
+            # =========================
+            perubahan_persen = (
                 (harga_30_agustus - harga_1_agustus)
                 / harga_1_agustus
             ) * 100
@@ -85,37 +114,54 @@ for ticker in tickers:
             hasil.append({
                 "Ticker": ticker,
                 "Tahun": tahun,
-                "Tanggal Awal": tanggal_1.strftime("%Y-%m-%d"),
-                "Harga Awal": round(float(harga_1_agustus), 2),
-                "Tanggal Akhir": tanggal_30.strftime("%Y-%m-%d"),
-                "Harga Akhir": round(float(harga_30_agustus), 2),
-                "Perubahan (%)": round(float(persen_perubahan), 2)
+                "Tanggal Awal": tanggal_1_agustus.strftime("%Y-%m-%d"),
+                "Harga Awal": round(harga_1_agustus, 2),
+                "Tanggal Akhir": tanggal_30_agustus.strftime("%Y-%m-%d"),
+                "Harga Akhir": round(harga_30_agustus, 2),
+                "Perubahan (%)": round(perubahan_persen, 2)
             })
 
-        print(f"Selesai: {ticker}")
+            print(
+                f"{tahun}: "
+                f"{harga_1_agustus:.2f} -> "
+                f"{harga_30_agustus:.2f} = "
+                f"{perubahan_persen:.2f}%"
+            )
 
     except Exception as e:
-        print(f"Error {ticker}: {e}")
+        print(f"ERROR pada {ticker}: {e}")
 
 
 # =========================
-# HASIL
+# MEMBUAT DATAFRAME
 # =========================
-df_hasil = pd.DataFrame(hasil)
+if len(hasil) == 0:
 
-# Urutkan berdasarkan ticker dan tahun
-df_hasil = df_hasil.sort_values(
-    by=["Ticker", "Tahun"]
-)
+    print("\nTidak ada data yang berhasil diambil.")
+    print("Periksa ticker saham atau koneksi ke Yahoo Finance.")
 
-print("\nHASIL PERBANDINGAN HARGA:")
-print(df_hasil.to_string(index=False))
+else:
 
-# Simpan ke Excel
-df_hasil.to_excel(
-    "perbandingan_harga_agustus.xlsx",
-    index=False
-)
+    df_hasil = pd.DataFrame(hasil)
 
-print("\nFile berhasil disimpan sebagai:")
-print("perbandingan_harga_agustus.xlsx")
+    # Urutkan data
+    df_hasil = df_hasil.sort_values(
+        by=["Ticker", "Tahun"]
+    )
+
+    print("\n==============================")
+    print("HASIL PERBANDINGAN")
+    print("==============================")
+
+    print(df_hasil.to_string(index=False))
+
+    # Simpan ke Excel
+    df_hasil.to_excel(
+        "perbandingan_harga_agustus.xlsx",
+        index=False
+    )
+
+    print(
+        "\nFile berhasil disimpan:"
+        " perbandingan_harga_agustus.xlsx"
+    )
